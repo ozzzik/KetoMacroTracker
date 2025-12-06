@@ -437,20 +437,12 @@ struct FoodSearchView: View {
             return
         }
         
-        // Add food on main thread
-        if Thread.isMainThread {
+        // Add food on main thread (always use async to avoid deadlocks)
+        Task { @MainActor in
             self.foodLogManager.addFood(food, servings: servings)
             // Small delay to ensure state updates complete before dismissing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self.dismiss()
-            }
-        } else {
-            DispatchQueue.main.sync {
-                self.foodLogManager.addFood(food, servings: servings)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self.dismiss()
-            }
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+            self.dismiss()
         }
     }
     
@@ -467,20 +459,12 @@ struct FoodSearchView: View {
             return
         }
         
-        // Add food on main thread
-        if Thread.isMainThread {
+        // Add food on main thread (always use async to avoid deadlocks)
+        Task { @MainActor in
             self.foodLogManager.addFood(food, servings: servings)
             // Small delay to ensure state updates complete before dismissing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self.dismiss()
-            }
-        } else {
-            DispatchQueue.main.sync {
-                self.foodLogManager.addFood(food, servings: servings)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                self.dismiss()
-            }
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+            self.dismiss()
         }
     }
     

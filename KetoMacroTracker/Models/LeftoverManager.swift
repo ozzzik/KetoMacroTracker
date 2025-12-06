@@ -66,15 +66,17 @@ class LeftoverManager: ObservableObject {
     }
     
     func finishLeftover(_ leftover: Leftover, servings: Double = 1.0, to foodLogManager: FoodLogManager) {
-        // Add each food from the leftover to today's log
-        for customFood in leftover.foods {
-            let adjustedServings = customFood.servings * servings
-            foodLogManager.addFood(customFood.food, servings: adjustedServings)
+        // Add each food from the leftover to today's log (must be on main actor)
+        Task { @MainActor in
+            for customFood in leftover.foods {
+                let adjustedServings = customFood.servings * servings
+                foodLogManager.addFood(customFood.food, servings: adjustedServings)
+            }
+            
+            // Remove the leftover
+            removeLeftover(leftover)
+            print("✅ Finished leftover: \(leftover.name)")
         }
-        
-        // Remove the leftover
-        removeLeftover(leftover)
-        print("✅ Finished leftover: \(leftover.name)")
     }
     
     func removeLeftover(_ leftover: Leftover) {

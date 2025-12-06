@@ -175,20 +175,24 @@ class CustomMealManager: ObservableObject {
     
     /// Log a custom meal to food diary
     func logCustomMeal(_ meal: CustomMeal, to foodLogManager: FoodLogManager) {
-        // Add each food in the custom meal to the food log
-        for customFood in meal.foods {
-            foodLogManager.addFood(customFood.food, servings: customFood.servings)
+        // Add each food in the custom meal to the food log (must be on main actor)
+        Task { @MainActor in
+            for customFood in meal.foods {
+                foodLogManager.addFood(customFood.food, servings: customFood.servings)
+            }
+            
+            // Update meal usage statistics
+            updateMealUsage(meal)
+            
+            // Add to recent meals
+            addToRecentMeals(meal)
         }
-        
-        // Update meal usage statistics
-        updateMealUsage(meal)
-        
-        // Add to recent meals
-        addToRecentMeals(meal)
     }
     
     func addFoodToLog(_ food: USDAFood, servings: Double, to foodLogManager: FoodLogManager) {
-        foodLogManager.addFood(food, servings: servings)
+        Task { @MainActor in
+            foodLogManager.addFood(food, servings: servings)
+        }
     }
     
     func updateMealUsageStats(_ meal: CustomMeal) {
@@ -328,33 +332,35 @@ class CustomMealManager: ObservableObject {
     }
     
     func quickAddTemplate(_ template: CustomMeal, servings: Double = 1.0, to foodLogManager: FoodLogManager) {
-        // Add each food from template to food log
-        for customFood in template.foods {
-            let adjustedServings = customFood.servings * servings
-            foodLogManager.addFood(customFood.food, servings: adjustedServings)
+        // Add each food from template to food log (must be on main actor)
+        Task { @MainActor in
+            for customFood in template.foods {
+                let adjustedServings = customFood.servings * servings
+                foodLogManager.addFood(customFood.food, servings: adjustedServings)
+            }
+            
+            // Update template usage
+            if let index = mealTemplates.firstIndex(where: { $0.id == template.id }) {
+                var updated = template
+                updated = CustomMeal(
+                    id: updated.id,
+                    name: updated.name,
+                    category: updated.category,
+                    foods: updated.foods,
+                    totalNutrition: updated.totalNutrition,
+                    prepTime: updated.prepTime,
+                    difficulty: updated.difficulty,
+                    description: updated.description,
+                    dateCreated: updated.dateCreated,
+                    lastUsed: Date(),
+                    useCount: updated.useCount + 1
+                )
+                mealTemplates[index] = updated
+                saveTemplates()
+            }
+            
+            print("✅ Quick added template: \(template.name)")
         }
-        
-        // Update template usage
-        if let index = mealTemplates.firstIndex(where: { $0.id == template.id }) {
-            var updated = template
-            updated = CustomMeal(
-                id: updated.id,
-                name: updated.name,
-                category: updated.category,
-                foods: updated.foods,
-                totalNutrition: updated.totalNutrition,
-                prepTime: updated.prepTime,
-                difficulty: updated.difficulty,
-                description: updated.description,
-                dateCreated: updated.dateCreated,
-                lastUsed: Date(),
-                useCount: updated.useCount + 1
-            )
-            mealTemplates[index] = updated
-            saveTemplates()
-        }
-        
-        print("✅ Quick added template: \(template.name)")
     }
     
     private func saveTemplates() {

@@ -288,16 +288,11 @@ class QuickAddManager: ObservableObject {
         print("  - Protein: \(usdaFood.protein)g, Carbs: \(usdaFood.totalCarbs)g, Fat: \(usdaFood.fat)g")
         
         // Ensure we're on the main thread for UI updates (required for @Published properties)
-        if Thread.isMainThread {
-            print("  - Already on main thread, adding food directly")
+        // Always use async to avoid deadlocks
+        Task { @MainActor in
+            print("  - Adding food on main actor")
             foodLogManager.addFood(usdaFood, servings: servings)
-            print("✅ quickAddToFoodLog completed - food added to log (main thread)")
-        } else {
-            print("  - Not on main thread, dispatching synchronously")
-            DispatchQueue.main.sync {
-                foodLogManager.addFood(usdaFood, servings: servings)
-                print("✅ quickAddToFoodLog completed - food added to log (dispatched to main)")
-            }
+            print("✅ quickAddToFoodLog completed - food added to log")
         }
     }
     

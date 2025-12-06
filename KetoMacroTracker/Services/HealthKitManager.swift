@@ -45,8 +45,6 @@ class HealthKitManager: ObservableObject {
             return
         }
         
-        let allTypes = readTypes.union(writeTypes)
-        
         healthStore.requestAuthorization(toShare: writeTypes, read: readTypes) { [weak self] success, error in
             DispatchQueue.main.async {
                 if success {

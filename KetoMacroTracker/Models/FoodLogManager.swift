@@ -61,6 +61,7 @@ class FoodLogManager: ObservableObject {
         loadTodaysFoods()
     }
     
+    @MainActor
     func addFood(_ food: USDAFood, servings: Double) {
         // Check for day transition first
         historicalDataManager.checkForDayTransition()
