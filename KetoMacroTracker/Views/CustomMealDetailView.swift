@@ -13,6 +13,7 @@ struct CustomMealDetailView: View {
     
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @StateObject private var customMealManager = CustomMealManager.shared
     @State private var showingAddConfirmation = false
     @State private var showingSaveAsTemplate = false
@@ -68,11 +69,13 @@ struct CustomMealDetailView: View {
         .sheet(isPresented: $showingServingsAdjustment) {
             CustomMealServingsView(customMeal: customMeal) { meal, adjustedFoods in
                 // Add each food with adjusted servings to food log
-                for adjustedFood in adjustedFoods {
-                    foodLogManager.addFood(adjustedFood.food, servings: adjustedFood.servings)
+                Task { @MainActor in
+                    for adjustedFood in adjustedFoods {
+                        try? foodLogManager.addFood(adjustedFood.food, servings: adjustedFood.servings, subscriptionManager: subscriptionManager)
+                    }
+                    // Update meal usage statistics (without adding foods again)
+                    customMealManager.updateMealUsageStats(meal)
                 }
-                // Update meal usage statistics (without adding foods again)
-                customMealManager.updateMealUsageStats(meal)
             }
         }
         .alert("Save as Template", isPresented: $showingSaveAsTemplate) {

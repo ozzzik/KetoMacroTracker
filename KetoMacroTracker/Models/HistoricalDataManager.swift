@@ -44,7 +44,17 @@ struct DailySummary: Identifiable, Codable {
 class HistoricalDataManager: ObservableObject {
     static let shared = HistoricalDataManager()
     
+    // Premium limits
+    static let freeHistoricalDaysLimit = 7 // 7 days for free users
+    
     @Published var dailySummaries: [DailySummary] = []
+    
+    /// Get historical data with premium limit check
+    func getHistoricalData(days: Int, isPremium: Bool) -> [DailySummary] {
+        let maxDays = isPremium ? days : min(days, Self.freeHistoricalDaysLimit)
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -maxDays, to: Date()) ?? Date()
+        return dailySummaries.filter { $0.date >= cutoffDate }
+    }
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()

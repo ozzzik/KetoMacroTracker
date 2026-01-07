@@ -8,6 +8,18 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Food Log Errors
+enum FoodLogError: LocalizedError {
+    case dailyLimitReached(limit: Int, current: Int)
+    
+    var errorDescription: String? {
+        switch self {
+        case .dailyLimitReached(let limit, _):
+            return "Daily limit reached! You've logged \(limit) foods today. Upgrade to Premium for unlimited logging."
+        }
+    }
+}
+
 // MARK: - Food Log Item
 struct LoggedFood: Identifiable, Codable {
     var id = UUID()
@@ -57,21 +69,68 @@ class FoodLogManager: ObservableObject {
     
     private let userDefaultsKey = "FoodLogData"
     
+    // Serial queue for food additions to prevent race conditions
+    private let additionQueue = DispatchQueue(label: "com.ketomacrotracker.foodaddition", qos: .userInitiated)
+    private var isAddingFood = false
+    
     private init() {
         loadTodaysFoods()
     }
     
+    // Premium limits
+    static let freeDailyFoodLimit = 7 // 5-10 range, using 7 as middle
+    
+    /// Get current daily food count
+    var todayFoodCount: Int {
+        todaysFoods.filter { 
+            Calendar.current.isDate($0.dateAdded, inSameDayAs: Date())
+        }.count
+    }
+    
+    /// Check if user can add more foods today (for free users)
+    func canAddFoodToday(isPremium: Bool) -> Bool {
+        if isPremium {
+            return true // Unlimited for premium
+        }
+        return todayFoodCount < Self.freeDailyFoodLimit
+    }
+    
     @MainActor
-    func addFood(_ food: USDAFood, servings: Double) {
+    func addFood(_ food: USDAFood, servings: Double, subscriptionManager: SubscriptionManager? = nil) throws {
+        print("🍽️ FoodLogManager.addFood called:")
+        print("  - Food: \(food.description)")
+        print("  - Servings: \(servings)")
+        print("  - Thread: \(Thread.isMainThread ? "Main" : "Background")")
+        
+        // Prevent concurrent additions
+        guard !isAddingFood else {
+            print("⚠️ Food addition already in progress, queuing...")
+            // Queue this addition
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                try self.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
+            }
+            return
+        }
+        
+        isAddingFood = true
+        defer { isAddingFood = false }
+        
         // Check for day transition first
         historicalDataManager.checkForDayTransition()
+        
+        // Check premium status and daily limit
+        let isPremium = subscriptionManager?.isPremiumActive ?? false
+        let todayFoodCount = todaysFoods.filter { 
+            Calendar.current.isDate($0.dateAdded, inSameDayAs: Date())
+        }.count
         
         // Check if the same food already exists today
         if let existingIndex = todaysFoods.firstIndex(where: { 
             $0.food.description.lowercased() == food.description.lowercased() && 
             Calendar.current.isDate($0.dateAdded, inSameDayAs: Date())
         }) {
-            // Combine servings with existing item
+            // Combining servings doesn't count as a new entry, so no limit check needed
             let existingFood = todaysFoods[existingIndex]
             let combinedServings = existingFood.servings + servings
             let updatedFood = LoggedFood(
@@ -83,6 +142,12 @@ class FoodLogManager: ObservableObject {
             
             print("🔄 Combined servings for \(food.description): \(existingFood.servings) + \(servings) = \(combinedServings) servings")
         } else {
+            // Check daily limit for free users
+            if !isPremium && todayFoodCount >= Self.freeDailyFoodLimit {
+                print("⚠️ Daily food limit reached: \(todayFoodCount)/\(Self.freeDailyFoodLimit)")
+                throw FoodLogError.dailyLimitReached(limit: Self.freeDailyFoodLimit, current: todayFoodCount)
+            }
+            
             // Add new food entry
             let loggedFood = LoggedFood(
                 food: food,
@@ -96,6 +161,13 @@ class FoodLogManager: ObservableObject {
         
         saveTodaysFoods()
         print("🍽️ Total today - Protein: \(totalProtein)g, Carbs: \(totalCarbs)g, Fat: \(totalFat)g")
+        print("✅ FoodLogManager.addFood completed successfully")
+        
+        // Return current count for UI display
+        let currentCount = todaysFoods.filter { 
+            Calendar.current.isDate($0.dateAdded, inSameDayAs: Date())
+        }.count
+        print("📊 Today's food count: \(currentCount)\(isPremium ? " (Premium - Unlimited)" : "/\(FoodLogManager.freeDailyFoodLimit)")")
         
         // Check for achievements
         AchievementManager.shared.checkAllAchievements()
@@ -187,19 +259,28 @@ class FoodLogManager: ObservableObject {
     }
     
     // MARK: - Persistence Methods
-    private func saveTodaysFoods() {
+    func saveTodaysFoods() {
+        // Ensure we're on main thread for @Published property access
+        let foodsToSave = todaysFoods
+        
         // Filter to keep only today's foods
         let today = dateFormatter.string(from: Date())
-        let todaysFoodsOnly = todaysFoods.filter { 
+        let todaysFoodsOnly = foodsToSave.filter { 
             dateFormatter.string(from: $0.dateAdded) == today 
         }
         
-        if let encoded = try? JSONEncoder().encode(todaysFoodsOnly) {
+        do {
+            let encoded = try JSONEncoder().encode(todaysFoodsOnly)
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+            UserDefaults.standard.synchronize() // Force immediate write to disk
             print("💾 Saved \(todaysFoodsOnly.count) food items to persistent storage")
             
             // Archive current day's data to historical records
             historicalDataManager.archiveCurrentDay(todaysFoodsOnly)
+        } catch {
+            print("❌ Failed to save food log data: \(error.localizedDescription)")
+            print("❌ Error details: \(error)")
+            // Don't clear data on save error - keep existing items
         }
     }
     
@@ -207,19 +288,29 @@ class FoodLogManager: ObservableObject {
         // Check for day transition first
         historicalDataManager.checkForDayTransition()
         
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let decodedFoods = try? JSONDecoder().decode([LoggedFood].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
             print("💾 No saved food data found, starting fresh")
             return
         }
         
-        // Filter to only load today's foods
-        let today = dateFormatter.string(from: Date())
-        todaysFoods = decodedFoods.filter { 
-            dateFormatter.string(from: $0.dateAdded) == today 
+        do {
+            let decodedFoods = try JSONDecoder().decode([LoggedFood].self, from: data)
+            
+            // Filter to only load today's foods
+            let today = dateFormatter.string(from: Date())
+            todaysFoods = decodedFoods.filter { 
+                dateFormatter.string(from: $0.dateAdded) == today 
+            }
+            
+            print("💾 Loaded \(todaysFoods.count) food items from persistent storage (from \(decodedFoods.count) total)")
+        } catch {
+            print("❌ Failed to decode food log data: \(error.localizedDescription)")
+            print("❌ Error details: \(error)")
+            print("💾 Starting fresh due to decode error")
+            // Clear corrupted data
+            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            todaysFoods = []
         }
-        
-        print("💾 Loaded \(todaysFoods.count) food items from persistent storage")
     }
     
     // MARK: - Data Management

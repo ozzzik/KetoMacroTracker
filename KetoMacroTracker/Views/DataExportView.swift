@@ -9,10 +9,12 @@ import SwiftUI
 
 struct DataExportView: View {
     @StateObject private var migrator = CrossAppDataMigrator()
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     private let exportManager = DataExportManager.shared
     @State private var exportCode = ""
     @State private var showingShareSheet = false
     @State private var showingCopyAlert = false
+    @State private var showingPaywall = false
     @State private var selectedExportType: ExportType = .dailySummary
     @State private var exportDays: Int = 30
     @State private var csvData: String = ""
@@ -26,6 +28,10 @@ struct DataExportView: View {
     }
     
     @Environment(\.dismiss) var dismiss
+    
+    private var isPremium: Bool {
+        subscriptionManager.isPremiumActive
+    }
     
     var body: some View {
         NavigationView {
@@ -94,6 +100,10 @@ struct DataExportView: View {
                 // Export Section
                 VStack(spacing: 16) {
                     Button(action: {
+                        if !isPremium {
+                            showingPaywall = true
+                            return
+                        }
                         generateExport()
                     }) {
                         HStack {
@@ -253,4 +263,5 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 #Preview {
     DataExportView()
+        .environmentObject(SubscriptionManager.shared)
 }

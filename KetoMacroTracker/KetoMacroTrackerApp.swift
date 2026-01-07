@@ -13,6 +13,7 @@ struct KetoMacroTrackerApp: App {
     @StateObject private var migrator = CrossAppDataMigrator()
     @StateObject private var tutorialManager = TutorialManager()
     @StateObject private var guidedTourManager = GuidedTourManager()
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -20,22 +21,12 @@ struct KetoMacroTrackerApp: App {
                 DataMigrationView()
             } else if shouldShowTutorial() {
                 TutorialView(tutorialManager: tutorialManager)
-            } else if shouldShowGuidedTour() {
-                ContentView()
-                    .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                    .environmentObject(tutorialManager)
-                    .environmentObject(guidedTourManager)
-                    .onAppear {
-                        // Start guided tour after a brief delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            guidedTourManager.startTour()
-                        }
-                    }
             } else {
                 ContentView()
                     .environment(\.managedObjectContext, persistenceController.container.viewContext)
                     .environmentObject(tutorialManager)
                     .environmentObject(guidedTourManager)
+                    .environmentObject(subscriptionManager)
             }
         }
     }
@@ -56,9 +47,5 @@ struct KetoMacroTrackerApp: App {
     
     private func shouldShowTutorial() -> Bool {
         return !tutorialManager.hasCompletedTutorial
-    }
-    
-    private func shouldShowGuidedTour() -> Bool {
-        return tutorialManager.hasCompletedTutorial && !guidedTourManager.hasCompletedTour
     }
 }

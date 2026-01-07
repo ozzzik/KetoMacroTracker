@@ -8,6 +8,18 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Custom Meal Errors
+enum CustomMealError: LocalizedError {
+    case limitReached(limit: Int, current: Int)
+    
+    var errorDescription: String? {
+        switch self {
+        case .limitReached(let limit, _):
+            return "Custom meal limit reached! You've created \(limit) custom meals. Upgrade to Premium for unlimited custom meals."
+        }
+    }
+}
+
 // MARK: - Custom Meal Data Structure
 struct CustomMeal: Identifiable, Codable, Hashable {
     let id: UUID
@@ -110,6 +122,9 @@ struct CustomMealFood: Identifiable, Codable, Hashable {
 class CustomMealManager: ObservableObject {
     static let shared = CustomMealManager()
     
+    // Premium limits
+    static let freeCustomMealLimit = 4 // 3-5 range, using 4 as middle
+    
     @Published var customMeals: [CustomMeal] = []
     @Published var recentMeals: [CustomMeal] = []
     @Published var mealTemplates: [CustomMeal] = [] // Templates are marked custom meals
@@ -117,6 +132,14 @@ class CustomMealManager: ObservableObject {
     private let userDefaultsKey = "CustomMeals"
     private let recentMealsKey = "RecentCustomMeals"
     private let templatesKey = "MealTemplates"
+    
+    /// Check if user can create more custom meals (for free users)
+    func canCreateCustomMeal(isPremium: Bool) -> Bool {
+        if isPremium {
+            return true // Unlimited for premium
+        }
+        return customMeals.count < Self.freeCustomMealLimit
+    }
     
     private init() {
         loadCustomMeals()
@@ -127,14 +150,22 @@ class CustomMealManager: ObservableObject {
     // MARK: - Public Methods
     
     /// Create a new custom meal
+    @MainActor
     func createCustomMeal(
         name: String,
         category: MealCategory,
         foods: [CustomMealFood],
         prepTime: Int,
         difficulty: DifficultyLevel,
-        description: String
-    ) -> CustomMeal {
+        description: String,
+        subscriptionManager: SubscriptionManager? = nil
+    ) throws -> CustomMeal {
+        
+        // Check premium status and limit
+        let isPremium = subscriptionManager?.isPremiumActive ?? false
+        if !isPremium && customMeals.count >= Self.freeCustomMealLimit {
+            throw CustomMealError.limitReached(limit: Self.freeCustomMealLimit, current: customMeals.count)
+        }
         
         let totalNutrition = calculateTotalNutrition(from: foods)
         
@@ -174,11 +205,11 @@ class CustomMealManager: ObservableObject {
     }
     
     /// Log a custom meal to food diary
-    func logCustomMeal(_ meal: CustomMeal, to foodLogManager: FoodLogManager) {
+    func logCustomMeal(_ meal: CustomMeal, to foodLogManager: FoodLogManager, subscriptionManager: SubscriptionManager? = nil) {
         // Add each food in the custom meal to the food log (must be on main actor)
         Task { @MainActor in
             for customFood in meal.foods {
-                foodLogManager.addFood(customFood.food, servings: customFood.servings)
+                try? foodLogManager.addFood(customFood.food, servings: customFood.servings, subscriptionManager: subscriptionManager)
             }
             
             // Update meal usage statistics
@@ -189,9 +220,9 @@ class CustomMealManager: ObservableObject {
         }
     }
     
-    func addFoodToLog(_ food: USDAFood, servings: Double, to foodLogManager: FoodLogManager) {
+    func addFoodToLog(_ food: USDAFood, servings: Double, to foodLogManager: FoodLogManager, subscriptionManager: SubscriptionManager? = nil) {
         Task { @MainActor in
-            foodLogManager.addFood(food, servings: servings)
+            try? foodLogManager.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
         }
     }
     
@@ -331,12 +362,12 @@ class CustomMealManager: ObservableObject {
         return Array(mealTemplates.prefix(limit))
     }
     
-    func quickAddTemplate(_ template: CustomMeal, servings: Double = 1.0, to foodLogManager: FoodLogManager) {
+    func quickAddTemplate(_ template: CustomMeal, servings: Double = 1.0, to foodLogManager: FoodLogManager, subscriptionManager: SubscriptionManager? = nil) {
         // Add each food from template to food log (must be on main actor)
         Task { @MainActor in
             for customFood in template.foods {
                 let adjustedServings = customFood.servings * servings
-                foodLogManager.addFood(customFood.food, servings: adjustedServings)
+                try? foodLogManager.addFood(customFood.food, servings: adjustedServings, subscriptionManager: subscriptionManager)
             }
             
             // Update template usage

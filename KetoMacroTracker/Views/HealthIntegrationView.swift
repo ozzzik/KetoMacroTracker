@@ -13,8 +13,10 @@ struct HealthIntegrationView: View {
     @StateObject private var foodLogManager = FoodLogManager.shared
     @StateObject private var waterManager = WaterIntakeManager.shared
     @StateObject private var fastingManager = FastingManager.shared
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @State private var showingAuthorizationAlert = false
+    @State private var showingPaywall = false
     @State private var autoSyncEnabled = UserDefaults.standard.bool(forKey: "HealthKitAutoSync")
     
     var body: some View {
@@ -46,7 +48,11 @@ struct HealthIntegrationView: View {
                     
                     if !healthKitManager.isAuthorized {
                         Button("Authorize Health Access") {
-                            healthKitManager.requestAuthorization()
+                            if !subscriptionManager.isPremiumActive {
+                                showingPaywall = true
+                            } else {
+                                healthKitManager.requestAuthorization()
+                            }
                         }
                         .foregroundColor(AppColors.primary)
                     }
@@ -129,7 +135,7 @@ struct HealthIntegrationView: View {
     }
     
     private func syncTodayToHealth() {
-        let goals = calculateMacroGoals(profile: profileManager.profile)
+        _ = calculateMacroGoals(profile: profileManager.profile)
         
         healthKitManager.saveNutritionToHealth(
             protein: foodLogManager.totalProtein,

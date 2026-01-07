@@ -11,7 +11,10 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         return scanner
     }
     
-    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {
+        // Update delegate in case the view controller is reused
+        uiViewController.delegate = context.coordinator
+    }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -47,9 +50,12 @@ class ScannerViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        if captureSession?.isRunning == false {
+        // Update preview layer frame in case view size changed
+        previewLayer?.frame = view.layer.bounds
+        
+        if let session = captureSession, !session.isRunning {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.captureSession.startRunning()
+                self?.captureSession?.startRunning()
             }
         }
     }
@@ -93,9 +99,14 @@ class ScannerViewController: UIViewController {
         }
         
         previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.layer.bounds
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        
+        // Update frame after view layout
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.previewLayer.frame = self.view.layer.bounds
+        }
         
         // Add close button
         let closeButton = UIButton(type: .system)
@@ -140,12 +151,23 @@ class ScannerViewController: UIViewController {
 
 extension ScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        if let metadataObject = metadataObjects.first {
-            guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
-            guard let stringValue = readableObject.stringValue else { return }
-            AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
-            
-            delegate?.didScanBarcode(stringValue)
+        guard let metadataObject = metadataObjects.first,
+              let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject,
+              let stringValue = readableObject.stringValue else {
+            return
+        }
+        
+        // Stop scanning to prevent multiple callbacks
+        captureSession?.stopRunning()
+        
+        // Play feedback sound
+        AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+        
+        // Notify delegate on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("📱 BarcodeScanner: Scanned barcode: \(stringValue)")
+            self.delegate?.didScanBarcode(stringValue)
         }
     }
 }

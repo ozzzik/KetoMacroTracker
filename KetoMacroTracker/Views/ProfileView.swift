@@ -11,8 +11,10 @@ struct ProfileView: View {
     @StateObject private var profileManager = ProfileManager.shared
     @EnvironmentObject var tutorialManager: TutorialManager
     @EnvironmentObject var guidedTourManager: GuidedTourManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @State private var showingEditProfile = false
     @State private var showingSubscription = false
+    @State private var showingPaywall = false
     @State private var showingDatabaseSettings = false
     @State private var showingAchievements = false
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
@@ -36,9 +38,106 @@ struct ProfileView: View {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(spacing: 24) {
-                    // Premium Subscription Section (temporarily disabled)
-                    // premiumSection
-                        // Profile Information
+                    // Premium Subscription Section
+                    AppCard {
+                        VStack(spacing: 16) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: subscriptionManager.isPremiumActive ? "crown.fill" : "crown")
+                                            .foregroundColor(AppColors.accent)
+                                            .font(.title2)
+                                        
+                                        Text(subscriptionManager.isPremiumActive ? "Premium Active" : "Upgrade to Premium")
+                                            .font(AppTypography.title3)
+                                            .foregroundColor(AppColors.text)
+                                    }
+                                    .onAppear {
+                                        print("🔄 ProfileView: Premium section appeared")
+                                        print("  - isPremiumActive: \(subscriptionManager.isPremiumActive)")
+                                        print("  - subscriptionStatus: \(subscriptionManager.subscriptionStatus)")
+                                        print("  - hasCheckedSubscriptionStatus: \(subscriptionManager.hasCheckedSubscriptionStatus)")
+                                    }
+                                    
+                                    if subscriptionManager.isPremiumActive {
+                                        if let expirationDate = subscriptionManager.expirationDate {
+                                            Text("Renews \(expirationDate, style: .date)")
+                                                .font(AppTypography.caption)
+                                                .foregroundColor(AppColors.secondaryText)
+                                        } else {
+                                            Text("Active Subscription")
+                                                .font(AppTypography.caption)
+                                                .foregroundColor(AppColors.secondaryText)
+                                        }
+                                    } else {
+                                        Text("Unlock all premium features")
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                if !subscriptionManager.isPremiumActive {
+                                    Button(action: {
+                                        print("🔄 ProfileView: Upgrade button tapped")
+                                        print("  - showingPaywall will be set to true")
+                                        showingPaywall = true
+                                        print("  - showingPaywall is now: \(showingPaywall)")
+                                    }) {
+                                        Text("Upgrade")
+                                            .font(AppTypography.headline)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                LinearGradient(
+                                                    colors: [AppColors.primary, AppColors.accent],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            
+                            if !subscriptionManager.isPremiumActive {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(AppColors.success)
+                                        .font(.caption)
+                                    Text("Unlimited food logging")
+                                        .font(AppTypography.caption)
+                                        .foregroundColor(AppColors.secondaryText)
+                                    
+                                    Spacer()
+                                }
+                                .padding(.top, 8)
+                                
+                                #if DEBUG
+                                // Debug button to activate premium for testing
+                                Button(action: {
+                                    subscriptionManager.activateSubscription()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "wrench.and.screwdriver")
+                                        Text("Activate Premium (Debug)")
+                                    }
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(6)
+                                }
+                                .padding(.top, 8)
+                                #endif
+                            }
+                        }
+                    }
+                    
+                    // Profile Information
                     AppCard {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Profile Information")
@@ -458,6 +557,85 @@ struct ProfileView: View {
                         }
                     }
                     
+                    // About Section
+                    AppCard {
+                        VStack(spacing: 16) {
+                            Text("About")
+                                .font(AppTypography.title3)
+                                .foregroundColor(AppColors.text)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            VStack(spacing: 12) {
+                                // App Version
+                                HStack(spacing: 12) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(AppColors.primary)
+                                        .font(.title3)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Version")
+                                            .font(AppTypography.body)
+                                            .foregroundColor(AppColors.text)
+                                        
+                                        Text(appVersion)
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                
+                                Divider()
+                                
+                                // Privacy Policy Link
+                                Link(destination: URL(string: "https://ozzzik.github.io/KetoMacroTracker/privacy-policy.html")!) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "lock.shield.fill")
+                                            .foregroundColor(AppColors.primary)
+                                            .font(.title3)
+                                        
+                                        Text("Privacy Policy")
+                                            .font(AppTypography.body)
+                                            .foregroundColor(AppColors.text)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "arrow.up.right.square")
+                                            .foregroundColor(AppColors.secondaryText)
+                                            .font(.caption)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                }
+                                
+                                Divider()
+                                
+                                // Terms of Use (EULA) Link
+                                Link(destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "doc.text.fill")
+                                            .foregroundColor(AppColors.primary)
+                                            .font(.title3)
+                                        
+                                        Text("Terms of Use (EULA)")
+                                            .font(AppTypography.body)
+                                            .foregroundColor(AppColors.text)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "arrow.up.right.square")
+                                            .foregroundColor(AppColors.secondaryText)
+                                            .font(.caption)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                }
+                            }
+                        }
+                    }
+                    
                     // Data Transfer Section (Hidden for now)
                     /*
                     AppCard {
@@ -551,15 +729,31 @@ struct ProfileView: View {
             // .sheet(isPresented: $showingHealthIntegration) {
             //     HealthIntegrationView()
             // }
-            // .sheet(isPresented: $showingSubscription) {
-            //     SubscriptionView()
-            // }
+            .sheet(isPresented: $showingPaywall, onDismiss: {
+                print("🔄 ProfileView: PaywallView sheet dismissed")
+            }) {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
+                    .onAppear {
+                        print("🔄 ProfileView: PaywallView sheet appeared")
+                    }
+            }
+            .sheet(isPresented: $showingSubscription) {
+                SubscriptionView()
+                    .environmentObject(subscriptionManager)
+            }
             // .sheet(isPresented: $showingDataImport) {
             //     DataTransferView()
             // }
         }
     }
     
+    // MARK: - App Version
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
+    }
     
     // Uses shared calculateMacroGoals function from Utils/MacroCalculations.swift
 

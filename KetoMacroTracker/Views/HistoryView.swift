@@ -12,9 +12,14 @@ struct HistoryView: View {
     @State private var selectedDate = Date()
     @State private var showingDatePicker = false
     @EnvironmentObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     private var historicalDataManager: HistoricalDataManager {
         foodLogManager.getHistoricalDataManager()
+    }
+    
+    private var isPremium: Bool {
+        subscriptionManager.isPremiumActive
     }
     
     private var selectedDateSummary: DailySummary? {
@@ -26,19 +31,38 @@ struct HistoryView: View {
     
     private var weeklyData: [DailySummary] {
         let data = historicalDataManager.getWeeklyData(for: selectedDate)
-        print("🔍 HistoryView Debug - Weekly data count: \(data.count)")
-        for summary in data {
-            print("🔍 HistoryView Debug - \(summary.date): \(summary.netCarbs)g net carbs")
-        }
-        return data
+        // Apply premium limit
+        return historicalDataManager.getHistoricalData(days: 7, isPremium: isPremium)
+            .filter { summary in
+                data.contains { $0.id == summary.id }
+            }
     }
     
     private var monthlyData: [DailySummary] {
-        historicalDataManager.getMonthlyData(for: selectedDate)
+        let data = historicalDataManager.getMonthlyData(for: selectedDate)
+        // Apply premium limit
+        return historicalDataManager.getHistoricalData(days: 30, isPremium: isPremium)
+            .filter { summary in
+                data.contains { $0.id == summary.id }
+            }
     }
     
     private var averageMacros: (protein: Double, netCarbs: Double, fat: Double, calories: Double) {
-        historicalDataManager.getAverageDailyMacros(days: 7)
+        let limitedData = historicalDataManager.getHistoricalData(days: 7, isPremium: isPremium)
+        if limitedData.isEmpty {
+            return (0, 0, 0, 0)
+        }
+        let totalProtein = limitedData.reduce(0) { $0 + $1.totalProtein }
+        let totalNetCarbs = limitedData.reduce(0) { $0 + $1.netCarbs }
+        let totalFat = limitedData.reduce(0) { $0 + $1.totalFat }
+        let totalCalories = limitedData.reduce(0) { $0 + $1.totalCalories }
+        let count = Double(limitedData.count)
+        return (
+            protein: totalProtein / count,
+            netCarbs: totalNetCarbs / count,
+            fat: totalFat / count,
+            calories: totalCalories / count
+        )
     }
     
     private var streakDays: Int {

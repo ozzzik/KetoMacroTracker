@@ -11,6 +11,7 @@ struct QuickMealsView: View {
     @StateObject private var suggestionEngine = MealSuggestionEngine.shared
     @StateObject private var customMealManager = CustomMealManager.shared
     @EnvironmentObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var mealsTutorialManager = MealsTutorialManager.shared
     
@@ -492,7 +493,9 @@ struct QuickMealsView: View {
     private func addMealToLog(_ meal: KetoMeal) {
         // Convert KetoMeal to USDAFood format for logging
         let usdaFood = convertKetoMealToUSDAFood(meal)
-        foodLogManager.addFood(usdaFood, servings: 1.0)
+        Task { @MainActor in
+            try? foodLogManager.addFood(usdaFood, servings: 1.0, subscriptionManager: subscriptionManager)
+        }
         suggestionEngine.addToRecentMeals(meal)
     }
     

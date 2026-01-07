@@ -1,126 +1,115 @@
-//
-//  SubscriptionView.swift
-//  Keto Macro Tracker
-//
-//  Created by Oz Hardoon on 9/27/25.
-//
-
 import SwiftUI
 import StoreKit
 
 struct SubscriptionView: View {
-    @Environment(\.dismiss) var dismiss
-    @State private var isLoading = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var selectedProduct: Product?
+    @State private var showingPurchaseAlert = false
+    @State private var purchaseMessage = ""
+    
+    /// Dynamic message based on subscription status
+    private var subscriptionMessage: String {
+        switch subscriptionManager.subscriptionStatus {
+        case .notSubscribed:
+            return "Start your free trial and unlock all premium features for tracking your keto macros."
+        case .expired:
+            return "Your subscription has ended. Subscribe to continue enjoying premium features."
+        case .inGracePeriod:
+            return "Your subscription is in grace period. Subscribe to continue enjoying premium features."
+        case .subscribed:
+            return "You're already subscribed! Thank you for supporting the app."
+        }
+    }
+    
+    /// Dynamic button text based on subscription status
+    private var buttonText: String {
+        switch subscriptionManager.subscriptionStatus {
+        case .notSubscribed:
+            return "Start Free Trial"
+        case .expired:
+            return "Subscribe Now"
+        case .inGracePeriod:
+            return "Renew Subscription"
+        case .subscribed:
+            return "Manage Subscription"
+        }
+    }
     
     var body: some View {
-        NavigationView {
-            GeometryReader { geometry in
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Scrollable content
                 ScrollView {
-                    VStack(spacing: 32) {
-                    // Header
-                    VStack(spacing: 16) {
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.yellow)
-                        
-                        Text("KetoMacroTracker Premium")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(AppColors.text)
-                            .multilineTextAlignment(.center)
-                        
-                        Text("Unlock advanced features and take your keto journey to the next level")
-                            .font(.body)
-                            .foregroundColor(AppColors.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    
-                    // Features List
-                    VStack(spacing: 20) {
-                        FeatureRow(
-                            icon: "infinity",
-                            title: "Unlimited Food Logging",
-                            description: "Log unlimited foods without restrictions"
-                        )
-                        
-                        FeatureRow(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: "Advanced Analytics",
-                            description: "Detailed insights and progress tracking"
-                        )
-                        
-                        FeatureRow(
-                            icon: "square.and.arrow.down",
-                            title: "Export & Backup",
-                            description: "Export your data and create backups"
-                        )
-                        
-                        FeatureRow(
-                            icon: "person.2.fill",
-                            title: "Multiple Profiles",
-                            description: "Track multiple family members"
-                        )
-                        
-                        FeatureRow(
-                            icon: "bell.fill",
-                            title: "Smart Reminders",
-                            description: "Custom reminders for meals and hydration"
-                        )
-                        
-                        FeatureRow(
-                            icon: "heart.fill",
-                            title: "Priority Support",
-                            description: "Get help when you need it most"
-                        )
-                    }
-                    .padding(.horizontal)
-                    
-                    // Pricing
-                    VStack(spacing: 16) {
-                        Text("Choose Your Plan")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(AppColors.text)
-                        
-                        VStack(spacing: 12) {
-                            SubscriptionOptionView(
-                                title: "Monthly",
-                                price: "$4.99",
-                                period: "per month",
-                                isPopular: false
-                            )
+                    VStack(spacing: 24) {
+                        // Header
+                        VStack(spacing: 16) {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(AppColors.accent)
                             
-                            SubscriptionOptionView(
-                                title: "Yearly",
-                                price: "$29.99",
-                                period: "per year",
-                                originalPrice: "$59.88",
-                                isPopular: true
-                            )
+                            Text("Unlock Premium Features")
+                                .font(AppTypography.title)
+                                .fontWeight(.bold)
+                                .multilineTextAlignment(.center)
+                            
+                            Text(subscriptionMessage)
+                                .font(AppTypography.body)
+                                .foregroundColor(AppColors.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
                         }
+                        .padding(.top, 20)
+                        .padding(.bottom, 20)
+                        
+                        // Subscription Options
+                        VStack(spacing: 16) {
+                            // Yearly Option (Recommended)
+                            if let yearlyProduct = subscriptionManager.yearlyProduct {
+                                SubscriptionOptionView(
+                                    product: yearlyProduct,
+                                    isRecommended: true,
+                                    isSelected: selectedProduct?.id == yearlyProduct.id,
+                                    savingsText: subscriptionManager.yearlySavings
+                                ) {
+                                    selectedProduct = yearlyProduct
+                                }
+                            }
+                            
+                            // Monthly Option
+                            if let monthlyProduct = subscriptionManager.monthlyProduct {
+                                SubscriptionOptionView(
+                                    product: monthlyProduct,
+                                    isRecommended: false,
+                                    isSelected: selectedProduct?.id == monthlyProduct.id,
+                                    savingsText: nil
+                                ) {
+                                    selectedProduct = monthlyProduct
+                                }
+                            }
+                        }
+                        .padding(.horizontal, max(20, geometry.size.width * 0.1))
                     }
-                    .padding(.horizontal)
+                }
+                
+                // Fixed bottom section for pricing and CTA
+                VStack(spacing: 16) {
+                    Divider()
                     
-                    // Purchase Button
-                    Button(action: {
-                        purchaseSubscription()
-                    }) {
+                    Button(action: purchaseSubscription) {
                         HStack {
-                            if isLoading {
+                            if subscriptionManager.isLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     .scaleEffect(0.8)
                             } else {
-                                Image(systemName: "crown.fill")
+                                Text(buttonText)
+                                    .fontWeight(.semibold)
                             }
-                            Text(isLoading ? "Processing..." : "Start Premium Trial")
-                                .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .frame(height: 50)
                         .background(
                             LinearGradient(
                                 colors: [AppColors.primary, AppColors.accent],
@@ -129,191 +118,232 @@ struct SubscriptionView: View {
                             )
                         )
                         .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .shadow(color: AppColors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .cornerRadius(AppCornerRadius.medium)
                     }
-                    .disabled(isLoading)
-                    .accessibilityLabel("Start Premium Trial")
-                    .accessibilityHint("Tap to begin your premium subscription trial")
-                    .padding(.horizontal)
+                    .disabled(subscriptionManager.isLoading || (selectedProduct == nil && subscriptionManager.products.isEmpty))
+                    .padding(.horizontal, max(20, geometry.size.width * 0.1))
                     
                     // Restore Purchases
                     Button("Restore Purchases") {
-                        restorePurchases()
-                    }
-                    .foregroundColor(AppColors.primary)
-                    .accessibilityLabel("Restore Purchases")
-                    .accessibilityHint("Tap to restore any previous premium purchases")
-                    .padding(.bottom)
-                    
-                    // Terms and Privacy
-                    VStack(spacing: 8) {
-                        Text("By subscribing, you agree to our Terms of Service and Privacy Policy")
-                            .font(.caption)
-                            .foregroundColor(AppColors.secondaryText)
-                            .multilineTextAlignment(.center)
-                        
-                        HStack(spacing: 20) {
-                            Button("Terms of Service") {
-                                // Open terms
-                            }
-                            .font(.caption)
-                            .foregroundColor(AppColors.primary)
-                            
-                            Button("Privacy Policy") {
-                                // Open privacy policy
-                            }
-                            .font(.caption)
-                            .foregroundColor(AppColors.primary)
+                        Task {
+                            await subscriptionManager.restorePurchases()
                         }
                     }
-                    .padding(.horizontal)
+                    .font(AppTypography.subheadline)
+                    .foregroundColor(AppColors.primary)
+                    .disabled(subscriptionManager.isLoading)
                     
-                        Spacer(minLength: 32)
+                    #if DEBUG
+                    // Debug button to activate premium
+                    Button("Activate Premium (Debug)") {
+                        subscriptionManager.activateSubscription()
+                        purchaseMessage = "Premium activated (Debug Mode)"
+                        showingPurchaseAlert = true
                     }
-                    .padding(.horizontal, geometry.size.width > 768 ? 32 : 16)
-                    .padding(.top, 20)
+                    .font(AppTypography.subheadline)
+                    .foregroundColor(.orange)
+                    .disabled(subscriptionManager.isLoading)
+                    #endif
+                    
+                    // Terms and Privacy Policy Links
+                    VStack(spacing: 8) {
+                        HStack(spacing: 16) {
+                            Link("Privacy Policy", destination: URL(string: "https://www.apple.com/legal/privacy/")!)
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.primary)
+                            
+                            Text("•")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.secondaryText)
+                            
+                            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.primary)
+                        }
+                        
+                        Text("Cancel anytime. Subscription automatically renews unless auto-renew is turned off at least 24 hours before the end of the current period.")
+                            .font(AppTypography.caption)
+                            .foregroundColor(AppColors.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, max(20, geometry.size.width * 0.1))
+                    .padding(.bottom, 20)
                 }
                 .background(AppColors.background)
             }
-            .navigationTitle("Premium")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
+            .background(AppColors.background)
+            .task {
+                print("🔄 Loading subscription products...")
+                await subscriptionManager.loadProducts()
+                
+                // Auto-select yearly product if available
+                if let yearlyProduct = subscriptionManager.yearlyProduct {
+                    print("✅ Auto-selected yearly product: \(yearlyProduct.id)")
+                    selectedProduct = yearlyProduct
+                } else if let monthlyProduct = subscriptionManager.monthlyProduct {
+                    print("✅ Auto-selected monthly product: \(monthlyProduct.id)")
+                    selectedProduct = monthlyProduct
+                } else {
+                    print("⚠️ No products available for selection")
+                    #if DEBUG
+                    // In debug mode, show a message about using debug activation
+                    purchaseMessage = "No products loaded. Use 'Activate Premium (Debug)' button in Profile for testing."
+                    showingPurchaseAlert = true
+                    #endif
                 }
             }
-        }
-        .navigationViewStyle(StackNavigationViewStyle())
-        .alert("Error", isPresented: $showingError) {
-            Button("OK") { }
-        } message: {
-            Text(errorMessage)
+            .alert("Purchase Result", isPresented: $showingPurchaseAlert) {
+                Button("OK") { }
+            } message: {
+                Text(purchaseMessage)
+            }
         }
     }
     
     private func purchaseSubscription() {
-        isLoading = true
+        print("🛒 purchaseSubscription() called")
+        print("  - selectedProduct: \(selectedProduct?.id ?? "nil")")
+        print("  - isLoading: \(subscriptionManager.isLoading)")
+        print("  - Available products: \(subscriptionManager.products.count)")
         
-        // Simulate purchase process
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            isLoading = false
-            // In a real app, this would handle StoreKit purchases
-            dismiss()
-        }
-    }
-    
-    private func restorePurchases() {
-        isLoading = true
-        
-        // Simulate restore process
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isLoading = false
-            // In a real app, this would restore StoreKit purchases
-        }
-    }
-}
-
-struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(AppColors.primary)
-                .frame(width: 30)
+        // Check if products are loaded
+        if subscriptionManager.products.isEmpty {
+            print("⚠️ No products available, loading...")
+            purchaseMessage = "Loading subscription options... Please try again in a moment."
+            showingPurchaseAlert = true
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(AppColors.text)
-                
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(AppColors.secondaryText)
+            // Try to load products
+            Task {
+                await subscriptionManager.loadProducts()
+                if let yearlyProduct = subscriptionManager.yearlyProduct {
+                    selectedProduct = yearlyProduct
+                } else if let monthlyProduct = subscriptionManager.monthlyProduct {
+                    selectedProduct = monthlyProduct
+                }
             }
-            
-            Spacer()
+            return
         }
-        .padding(.horizontal)
+        
+        guard let product = selectedProduct else { 
+            print("⚠️ No product selected")
+            purchaseMessage = "Please select a subscription option"
+            showingPurchaseAlert = true
+            return 
+        }
+        
+        // Check if already loading
+        guard !subscriptionManager.isLoading else {
+            print("⚠️ Purchase already in progress")
+            purchaseMessage = "Purchase already in progress. Please wait..."
+            showingPurchaseAlert = true
+            return
+        }
+        
+        print("🛒 Starting purchase for product: \(product.id)")
+        Task {
+            do {
+                try await subscriptionManager.purchase(product)
+                
+                print("✅ Purchase completed successfully")
+                purchaseMessage = "Subscription activated successfully!"
+                showingPurchaseAlert = true
+                
+                // Wait for subscription status to update, then dismiss
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                if subscriptionManager.isPremiumActive {
+                    dismiss()
+                }
+            } catch {
+                let errorMessage = error.localizedDescription
+                print("❌ Purchase error: \(errorMessage)")
+                
+                // Don't show error for user cancellation
+                if !errorMessage.lowercased().contains("cancelled") {
+                    purchaseMessage = "Purchase failed: \(errorMessage)"
+                    showingPurchaseAlert = true
+                }
+            }
+        }
     }
 }
 
 struct SubscriptionOptionView: View {
-    let title: String
-    let price: String
-    let period: String
-    let originalPrice: String?
-    let isPopular: Bool
-    
-    init(title: String, price: String, period: String, originalPrice: String? = nil, isPopular: Bool = false) {
-        self.title = title
-        self.price = price
-        self.period = period
-        self.originalPrice = originalPrice
-        self.isPopular = isPopular
-    }
+    let product: Product
+    let isRecommended: Bool
+    let isSelected: Bool
+    let savingsText: String?
+    let action: () -> Void
     
     var body: some View {
-        VStack(spacing: 8) {
-            if isPopular {
-                Text("MOST POPULAR")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(AppColors.primary)
-                    .cornerRadius(8)
-            }
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(AppColors.text)
-                    
-                    HStack(alignment: .bottom, spacing: 4) {
-                        Text(price)
-                            .font(.title2)
+        Button(action: action) {
+            VStack(spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(product.displayName)
+                                .font(AppTypography.headline)
+                                .fontWeight(.semibold)
+                            
+                            if isRecommended {
+                                Text("BEST VALUE")
+                                    .font(AppTypography.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(AppColors.accent)
+                                    .cornerRadius(4)
+                            }
+                        }
+                        
+                        Text(formatPrice(product.price))
+                            .font(AppTypography.title2)
                             .fontWeight(.bold)
                             .foregroundColor(AppColors.text)
                         
-                        Text(period)
-                            .font(.caption)
-                            .foregroundColor(AppColors.secondaryText)
+                        if let savingsText = savingsText {
+                            Text("Save \(savingsText)")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.success)
+                                .fontWeight(.medium)
+                        }
                     }
                     
-                    if let originalPrice = originalPrice {
-                        Text(originalPrice)
-                            .font(.caption)
-                            .strikethrough()
-                            .foregroundColor(AppColors.secondaryText)
-                    }
+                    Spacer()
+                    
+                    // Selection indicator
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundColor(isSelected ? AppColors.primary : AppColors.secondaryText)
                 }
-                
-                Spacer()
-                
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(isPopular ? AppColors.primary : AppColors.secondaryText)
+                .padding(16)
             }
+            .background(
+                RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+                    .fill(AppColors.secondaryBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+                            .stroke(isSelected ? AppColors.primary : Color.clear, lineWidth: 2)
+                    )
+            )
         }
-        .padding()
-        .background(AppColors.secondaryBackground)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isPopular ? AppColors.primary : Color.clear, lineWidth: 2)
-        )
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func formatPrice(_ price: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale.current
+        
+        if product.id.contains("yearly") {
+            return "\(formatter.string(from: price as NSDecimalNumber) ?? "")/year"
+        } else {
+            return "\(formatter.string(from: price as NSDecimalNumber) ?? "")/month"
+        }
     }
 }
 
 #Preview {
     SubscriptionView()
+        .environmentObject(SubscriptionManager.shared)
 }

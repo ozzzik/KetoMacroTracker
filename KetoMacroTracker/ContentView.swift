@@ -14,6 +14,7 @@ struct ContentView: View {
     @StateObject private var onboardingManager = OnboardingManager.shared
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
     @State private var selectedTab = 0
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
         // Initialize data migration manager to ensure data persistence across updates
@@ -79,6 +80,22 @@ struct ContentView: View {
             if !onboardingManager.hasCompletedOnboarding {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     onboardingManager.startOnboarding()
+                }
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            // Save data when app goes to background or becomes inactive
+            if newPhase == .background || newPhase == .inactive {
+                print("💾 App going to background, saving all data...")
+                
+                // Save on main thread to ensure @Published properties are accessible
+                Task { @MainActor in
+                    foodLogManager.saveTodaysFoods()
+                    quickAddManager.saveQuickAddItems()
+                    
+                    // Force immediate write to disk
+                    UserDefaults.standard.synchronize()
+                    print("✅ All data saved successfully")
                 }
             }
         }

@@ -36,16 +36,30 @@ class QuickAddManager: ObservableObject {
     private var isAddingToQuickAdd = false
     
     init() {
+        // Load items synchronously to ensure they're available immediately
         loadQuickAddItems()
+        
+        // Only create sample items if we truly have no items
+        // This check happens after synchronous load, so it's safe
         if quickAddItems.isEmpty {
+            print("📱 Quick Add items list is empty after load, creating sample items")
             createSampleQuickAddItems()
         }
-        fixServingSizes() // Fix any existing items with incorrect serving sizes
+        
+        // Fix serving sizes after a brief delay to ensure UI is ready
+        DispatchQueue.main.async { [weak self] in
+            self?.fixServingSizes()
+        }
     }
     
     func loadQuickAddItems() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let items = try? JSONDecoder().decode([QuickAddItem].self, from: data) {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
+            print("📱 No Quick Add items found in UserDefaults")
+            return
+        }
+        
+        do {
+            let items = try JSONDecoder().decode([QuickAddItem].self, from: data)
             
             // Migrate old items that don't have original data or brandName
             let migratedItems = items.map { item in
@@ -84,26 +98,49 @@ class QuickAddManager: ObservableObject {
                 return item1.createdAt > item2.createdAt
             }
             
-            // Update the published property directly (no async needed here)
+            // Update synchronously - must be on main thread for @Published property
+            // Since QuickAddManager is created as @StateObject, init runs on main thread
+            assert(Thread.isMainThread, "QuickAddManager.init must run on main thread")
             quickAddItems = sortedItems
             
-            // Save migrated items if any changes were made
+            // Save migrated items if any changes were made (but don't reload to avoid race conditions)
             if migratedItems != items {
-                saveQuickAddItems()
+                // Save without reloading - @Published will update UI
+                let dataToSave = try? JSONEncoder().encode(sortedItems)
+                if let data = dataToSave {
+                    UserDefaults.standard.set(data, forKey: userDefaultsKey)
+                    UserDefaults.standard.synchronize()
+                }
             }
             
             print("📱 Loaded \(quickAddItems.count) Quick Add items:")
             for item in quickAddItems {
                 print("  - \(item.name) (Category: \(item.category))")
             }
-        } else {
-            print("📱 No Quick Add items found in UserDefaults")
+        } catch {
+            print("❌ Failed to decode Quick Add items: \(error.localizedDescription)")
+            print("❌ Error details: \(error)")
+            // Don't clear data on decode error - keep existing items if possible
+            // Only clear if we have no items at all
+            if quickAddItems.isEmpty {
+                print("⚠️ No items loaded and decode failed, starting fresh")
+            }
         }
     }
     
     func saveQuickAddItems() {
-        if let data = try? JSONEncoder().encode(quickAddItems) {
+        // Ensure we're on main thread for @Published property access
+        let itemsToSave = quickAddItems
+        
+        do {
+            let data = try JSONEncoder().encode(itemsToSave)
             UserDefaults.standard.set(data, forKey: userDefaultsKey)
+            UserDefaults.standard.synchronize() // Force immediate write to disk
+            print("💾 Saved \(itemsToSave.count) Quick Add items to persistent storage")
+        } catch {
+            print("❌ Failed to save Quick Add items: \(error.localizedDescription)")
+            print("❌ Error details: \(error)")
+            // Don't clear data on save error - keep existing items
         }
     }
     
@@ -167,7 +204,7 @@ class QuickAddManager: ObservableObject {
         }
         
         saveQuickAddItems()
-        loadQuickAddItems() // Reload to ensure UI is in sync
+        // Don't reload - @Published property will update UI automatically
         print("✅ Quick Add updated successfully. Total items: \(quickAddItems.count)")
         
         // Ensure UI updates on main thread
@@ -182,18 +219,20 @@ class QuickAddManager: ObservableObject {
         }
     }
     
-    func quickAddToFoodLog(_ quickAddItem: QuickAddItem, servings: Double = 1.0, foodLogManager: FoodLogManager) {
+    func quickAddToFoodLog(_ quickAddItem: QuickAddItem, servings: Double = 1.0, foodLogManager: FoodLogManager, subscriptionManager: SubscriptionManager? = nil) async throws {
         print("🔄 QuickAddManager.quickAddToFoodLog called:")
         print("  - Item: \(quickAddItem.name)")
         print("  - Servings: \(servings)")
         print("  - FoodLogManager: \(Unmanaged.passUnretained(foodLogManager).toOpaque())")
         
-        // Update use count and last used
-        if let index = quickAddItems.firstIndex(where: { $0.id == quickAddItem.id }) {
-            quickAddItems[index].useCount += 1
-            quickAddItems[index].lastUsed = Date()
-            saveQuickAddItems()
-            loadQuickAddItems()
+        // Update use count and last used on main thread
+        await MainActor.run {
+            if let index = quickAddItems.firstIndex(where: { $0.id == quickAddItem.id }) {
+                quickAddItems[index].useCount += 1
+                quickAddItems[index].lastUsed = Date()
+                saveQuickAddItems()
+                // Don't reload - @Published will update UI automatically
+            }
         }
         
         // Create a USDAFood-like object for the food log with proper nutrients
@@ -287,11 +326,11 @@ class QuickAddManager: ObservableObject {
         print("  - Servings: \(servings)")
         print("  - Protein: \(usdaFood.protein)g, Carbs: \(usdaFood.totalCarbs)g, Fat: \(usdaFood.fat)g")
         
-        // Ensure we're on the main thread for UI updates (required for @Published properties)
-        // Always use async to avoid deadlocks
-        Task { @MainActor in
+        // Ensure we're on the main actor for UI updates (required for @Published properties)
+        // FoodLogManager is @MainActor, so we must call from main actor
+        return try await MainActor.run {
             print("  - Adding food on main actor")
-            foodLogManager.addFood(usdaFood, servings: servings)
+            try foodLogManager.addFood(usdaFood, servings: servings, subscriptionManager: subscriptionManager)
             print("✅ quickAddToFoodLog completed - food added to log")
         }
     }
@@ -299,7 +338,7 @@ class QuickAddManager: ObservableObject {
     func removeQuickAddItem(_ item: QuickAddItem) {
         quickAddItems.removeAll { $0.id == item.id }
         saveQuickAddItems()
-        loadQuickAddItems()
+        // Don't reload - @Published will update UI automatically
     }
     
     func getQuickAddItemsByCategory(_ category: String) -> [QuickAddItem] {
@@ -325,7 +364,7 @@ class QuickAddManager: ObservableObject {
         
         if needsUpdate {
             saveQuickAddItems()
-            loadQuickAddItems()
+            // Don't reload - @Published will update UI automatically
         }
     }
     
@@ -395,7 +434,7 @@ class QuickAddManager: ObservableObject {
     func clearAllQuickAddItems() {
         quickAddItems.removeAll()
         saveQuickAddItems()
-        loadQuickAddItems()
+        // Don't reload - @Published will update UI automatically
         print("🗑️ Cleared all Quick Add items")
     }
     
@@ -444,6 +483,6 @@ class QuickAddManager: ObservableObject {
         }
         
         saveQuickAddItems()
-        loadQuickAddItems()
+        // Don't reload - @Published will update UI automatically
     }
 }

@@ -4,9 +4,13 @@ struct QuickAddView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var quickAddManager: QuickAddManager
     @ObservedObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @StateObject private var historicalDataManager = HistoricalDataManager.shared
     @State private var selectedCategory = "All"
     @State private var showingAddToQuickAdd = false
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var limitAlertMessage = ""
     @State private var searchText = ""
     
     private var recentFoods: [LoggedFood] {
@@ -94,7 +98,16 @@ struct QuickAddView: View {
                                 ForEach(recentFoods.prefix(10), id: \.id) { loggedFood in
                                     Button(action: {
                                         // Add the food with the same serving size
-                                        foodLogManager.addFood(loggedFood.food, servings: loggedFood.servings)
+                                        Task { @MainActor in
+                                            do {
+                                                try foodLogManager.addFood(loggedFood.food, servings: loggedFood.servings, subscriptionManager: subscriptionManager)
+                                        } catch FoodLogError.dailyLimitReached(let limit, _) {
+                                            limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                                            showingLimitAlert = true
+                                            } catch {
+                                                print("❌ Error adding food: \(error)")
+                                            }
+                                        }
                                         // Don't dismiss - allow adding multiple foods
                                     }) {
                                         VStack(spacing: 6) {
@@ -175,15 +188,41 @@ struct QuickAddView: View {
                             QuickAddItemRow(
                                 item: item,
                                 onQuickAdd: { servings in
-                                    print("🔄 QuickAddView: onQuickAdd called with \(servings) servings")
+                                    print("🔄 QuickAddView: onQuickAdd callback received")
                                     print("  - Item: \(item.name)")
-                                    print("  - FoodLogManager: \(Unmanaged.passUnretained(foodLogManager).toOpaque())")
+                                    print("  - Servings: \(servings)")
                                     
-                                    // Add food immediately (synchronously on main thread)
-                                    quickAddManager.quickAddToFoodLog(item, servings: servings, foodLogManager: foodLogManager)
+                                    // Validate servings
+                                    guard servings > 0, servings.isFinite else {
+                                        print("  - ❌ Invalid servings: \(servings)")
+                                        return
+                                    }
                                     
-                                    print("🔄 QuickAddView: Food added successfully")
-                                    // Don't dismiss - allow adding multiple foods
+                                    // Check daily limit before adding
+                                    if !subscriptionManager.isPremiumActive && !foodLogManager.canAddFoodToday(isPremium: subscriptionManager.isPremiumActive) {
+                                        let limit = FoodLogManager.freeDailyFoodLimit
+                                        let current = foodLogManager.todayFoodCount
+                                        print("  - ⚠️ Daily limit reached: \(current)/\(limit)")
+                                        limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                                        showingLimitAlert = true
+                                        return
+                                    }
+                                    
+                                    // Add food directly
+                                    print("  - ✅ Proceeding to add food to log")
+                                    Task { @MainActor in
+                                        do {
+                                            print("  - 📞 Calling quickAddToFoodLog...")
+                                            try await quickAddManager.quickAddToFoodLog(item, servings: servings, foodLogManager: foodLogManager, subscriptionManager: subscriptionManager)
+                                            print("  - ✅ Food added successfully!")
+                                        } catch FoodLogError.dailyLimitReached(let limit, _) {
+                                            limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                                            showingLimitAlert = true
+                                        } catch {
+                                            print("  - ❌ Error adding food: \(error.localizedDescription)")
+                                            print("  - Error type: \(type(of: error))")
+                                        }
+                                    }
                                 },
                                 onEdit: { editedItem in
                                     quickAddManager.updateQuickAddItem(editedItem)
@@ -219,6 +258,18 @@ struct QuickAddView: View {
                         hideKeyboard()
                     }
             )
+            .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
+                Button("Upgrade to Premium") {
+                    showingPaywall = true
+                }
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(limitAlertMessage)
+            }
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
+            }
         }
     }
     
@@ -237,7 +288,6 @@ struct QuickAddItemRow: View {
     @State private var servingSize = "1.0"
     @State private var showingServingsInput = false
     @State private var showingEditSheet = false
-    @State private var pendingServings: Double? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -283,6 +333,7 @@ struct QuickAddItemRow: View {
                     
                     // Add button - always prompt for amount
                     Button(action: {
+                        servingSize = "1.0"
                         showingServingsInput = true
                     }) {
                         Image(systemName: "plus.circle.fill")
@@ -315,37 +366,64 @@ struct QuickAddItemRow: View {
             }
         }
         .padding(.vertical, 8)
-        .alert("Add to Food Log", isPresented: $showingServingsInput) {
-            TextField("1.0", text: $servingSize)
-                .keyboardType(.decimalPad)
-            
-            Button("Add") {
-                print("🔄 QuickAddItemRow: Alert 'Add' button tapped")
-                print("  - servingSize text: '\(servingSize)'")
-                if let servings = Double(servingSize), servings > 0 {
-                    print("  - Parsed servings: \(servings)")
-                    // Store pending servings and execute after alert dismisses
-                    pendingServings = servings
-                } else {
-                    print("  - ERROR: Could not parse servings from '\(servingSize)'")
+        .sheet(isPresented: $showingServingsInput) {
+            NavigationView {
+                VStack(spacing: 20) {
+                    Text("Add \(item.name)")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .padding(.top)
+                    
+                    Text("Serving size: \(item.servingSize)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.top, -8)
+                    
+                    Text("How many servings?")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                    
+                    TextField("1.0", text: $servingSize)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .keyboardType(.decimalPad)
+                        .padding(.horizontal)
+                        .font(.title)
+                        .multilineTextAlignment(.center)
+                    
+                    Button(action: {
+                        if let servings = Double(servingSize), servings > 0, servings.isFinite {
+                            showingServingsInput = false
+                            // Small delay to ensure sheet dismisses
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onQuickAdd(servings)
+                            }
+                        } else {
+                            servingSize = "1.0"
+                        }
+                    }) {
+                        Text("Add to Food Log")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    .disabled(servingSize.isEmpty || Double(servingSize) == nil || Double(servingSize)! <= 0)
+                    
+                    Spacer()
                 }
-            }
-            
-            Button("Cancel", role: .cancel) { 
-                servingSize = "1.0"
-            }
-        } message: {
-            Text("How many servings of \(item.name) would you like to add?")
-        }
-        .onChange(of: showingServingsInput) { oldValue, newValue in
-            // When alert dismisses (newValue is false), execute pending callback
-            if !newValue, let servings = pendingServings {
-                print("  - Alert dismissed, executing callback with \(servings) servings")
-                print("  - Calling onQuickAdd callback...")
-                onQuickAdd(servings)
-                print("  - onQuickAdd callback completed")
-                pendingServings = nil
-                servingSize = "1.0" // Reset to default for next time
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Cancel") {
+                            servingSize = "1.0"
+                            showingServingsInput = false
+                        }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingEditSheet) {

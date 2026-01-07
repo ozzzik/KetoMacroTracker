@@ -5,6 +5,7 @@ struct FoodSearchView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var foodLogManager: FoodLogManager
     @ObservedObject var quickAddManager: QuickAddManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     // Optional callback for custom meal creation (food, servings)
     var onFoodSelected: ((USDAFood, Double) -> Void)? = nil
@@ -26,6 +27,9 @@ struct FoodSearchView: View {
     @State private var showKetoFriendlyOnly = false
     @State private var sortOption: SortOption = .relevance
     @State private var showingBarcodeHistory = false
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var limitAlertMessage = ""
     
     @StateObject private var barcodeHistoryManager = BarcodeHistoryManager.shared
     
@@ -123,6 +127,11 @@ struct FoodSearchView: View {
             .buttonStyle(.bordered)
             
             Button("Scan Barcode") {
+                if !subscriptionManager.isPremiumActive {
+                    limitAlertMessage = "Barcode scanning is a Premium feature. Upgrade to unlock this feature!"
+                    showingLimitAlert = true
+                    return
+                }
                 showingBarcodeScanner = true
             }
             .buttonStyle(.bordered)
@@ -239,8 +248,13 @@ struct FoodSearchView: View {
             print("📱 showingManualEntry changed to: \(newValue)")
         }
         .sheet(isPresented: $showingBarcodeScanner) {
-            BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
-                handleBarcodeScanned(barcode)
+            if subscriptionManager.isPremiumActive {
+                BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
+                    handleBarcodeScanned(barcode)
+                }
+            } else {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
             }
         }
         .sheet(isPresented: $showingBarcodeHistory) {
@@ -291,6 +305,18 @@ struct FoodSearchView: View {
             } else {
                 Text("Error: No food selected")
             }
+        }
+        .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
+            Button("Upgrade to Premium") {
+                showingPaywall = true
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(limitAlertMessage)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
         }
     }
     
@@ -437,12 +463,28 @@ struct FoodSearchView: View {
             return
         }
         
-        // Add food on main thread (always use async to avoid deadlocks)
+        // Check daily limit before adding
+        if !subscriptionManager.isPremiumActive && !foodLogManager.canAddFoodToday(isPremium: subscriptionManager.isPremiumActive) {
+            let limit = FoodLogManager.freeDailyFoodLimit
+            limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+            showingLimitAlert = true
+            return
+        }
+        
+        // Add food on main actor (FoodLogManager is @MainActor)
         Task { @MainActor in
-            self.foodLogManager.addFood(food, servings: servings)
-            // Small delay to ensure state updates complete before dismissing
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
-            self.dismiss()
+            print("  - Adding food on main actor")
+            do {
+                try foodLogManager.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
+                // Small delay to ensure state updates complete before dismissing
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                self.dismiss()
+            } catch FoodLogError.dailyLimitReached(let limit, _) {
+                limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                showingLimitAlert = true
+            } catch {
+                print("❌ Error adding food: \(error)")
+            }
         }
     }
     
@@ -459,12 +501,29 @@ struct FoodSearchView: View {
             return
         }
         
-        // Add food on main thread (always use async to avoid deadlocks)
+        // Check daily limit before adding
+        if !subscriptionManager.isPremiumActive && !foodLogManager.canAddFoodToday(isPremium: subscriptionManager.isPremiumActive) {
+            let current = foodLogManager.todayFoodCount
+            let limit = FoodLogManager.freeDailyFoodLimit
+            limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+            showingLimitAlert = true
+            return
+        }
+        
+        // Add food on main actor (FoodLogManager is @MainActor)
         Task { @MainActor in
-            self.foodLogManager.addFood(food, servings: servings)
-            // Small delay to ensure state updates complete before dismissing
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
-            self.dismiss()
+            print("  - Adding food on main actor")
+            do {
+                try foodLogManager.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
+                // Small delay to ensure state updates complete before dismissing
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                self.dismiss()
+            } catch FoodLogError.dailyLimitReached(let limit, _) {
+                limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                showingLimitAlert = true
+            } catch {
+                print("❌ Error adding food: \(error)")
+            }
         }
     }
     
@@ -592,12 +651,16 @@ struct FoodSearchResultRow: View {
     let food: USDAFood
     let quickAddManager: QuickAddManager
     let foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     let onAdd: (USDAFood) -> Void
     let onQuickAdd: (USDAFood) -> Void
     let onManualEntry: (USDAFood) -> Void
     
     @State private var servingSize = "1.0"
     @State private var showingAddConfirmation = false
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var limitAlertMessage = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -703,8 +766,17 @@ struct FoodSearchResultRow: View {
             Button("Add") {
                 if let servings = Double(servingSize), servings > 0 {
                     // Directly add to food log with the serving size from text field
-                    foodLogManager.addFood(food, servings: servings)
-                    print("✅ Added \(servings) servings of \(food.description) to food log")
+                    Task { @MainActor in
+                        do {
+                            try foodLogManager.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
+                            print("✅ Added \(servings) servings of \(food.description) to food log")
+                        } catch FoodLogError.dailyLimitReached(let limit, _) {
+                            limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
+                            showingLimitAlert = true
+                        } catch {
+                            print("❌ Error adding food: \(error)")
+                        }
+                    }
                 } else {
                     // If invalid serving size, open unit selection
                     onAdd(food)

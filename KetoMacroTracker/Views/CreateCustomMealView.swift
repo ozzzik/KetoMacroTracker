@@ -10,8 +10,13 @@ import SwiftUI
 struct CreateCustomMealView: View {
     @StateObject private var customMealManager = CustomMealManager.shared
     @EnvironmentObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @StateObject private var quickAddManager = QuickAddManager()
     @Environment(\.dismiss) var dismiss
+    
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var limitAlertMessage = ""
     
     @State private var builder = CustomMealBuilder()
     @State private var showingFoodSearch = false
@@ -74,6 +79,18 @@ struct CreateCustomMealView: View {
                     addFoodToMeal(food, servings: servings)
                 }
             )
+        }
+        .alert("Custom Meal Limit Reached", isPresented: $showingLimitAlert) {
+            Button("Upgrade to Premium") {
+                showingPaywall = true
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(limitAlertMessage)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
         }
         .alert("Delete Food", isPresented: $showingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -303,16 +320,34 @@ struct CreateCustomMealView: View {
     }
     
     private func saveCustomMeal() {
-        _ = customMealManager.createCustomMeal(
-            name: builder.name,
-            category: builder.category,
-            foods: builder.foods,
-            prepTime: builder.prepTime,
-            difficulty: builder.difficulty,
-            description: builder.description
-        )
+        // Check premium limit before creating
+        if !subscriptionManager.isPremiumActive && !customMealManager.canCreateCustomMeal(isPremium: subscriptionManager.isPremiumActive) {
+            let limit = CustomMealManager.freeCustomMealLimit
+            limitAlertMessage = "You've reached your limit of \(limit) custom meals. Upgrade to Premium for unlimited custom meals!"
+            showingLimitAlert = true
+            return
+        }
         
-        dismiss()
+        Task { @MainActor in
+            do {
+                try await customMealManager.createCustomMeal(
+                name: builder.name,
+                category: builder.category,
+                foods: builder.foods,
+                prepTime: builder.prepTime,
+                difficulty: builder.difficulty,
+                description: builder.description,
+                subscriptionManager: subscriptionManager
+            )
+            
+                dismiss()
+            } catch CustomMealError.limitReached(let limit, _) {
+                limitAlertMessage = "You've reached your limit of \(limit) custom meals. Upgrade to Premium for unlimited custom meals!"
+                showingLimitAlert = true
+            } catch {
+                print("❌ Error creating custom meal: \(error)")
+            }
+        }
     }
 }
 
