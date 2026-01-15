@@ -71,7 +71,7 @@ struct QuickMealsView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // Header with remaining macros
@@ -129,28 +129,28 @@ struct QuickMealsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingFilters) {
+        .adaptiveSheet(isPresented: $showingFilters) {
             MealFiltersView(
                 selectedCategory: $selectedCategory,
                 maxPrepTime: $maxPrepTime,
                 difficulty: $difficulty
             )
         }
-        .sheet(item: $showingMealDetail) { meal in
+        .adaptiveSheet(item: $showingMealDetail) { meal in
             MealDetailView(meal: meal) { meal in
                 addMealToLog(meal)
             }
         }
-        .sheet(isPresented: $showingCreateCustomMeal) {
+        .adaptiveSheet(isPresented: $showingCreateCustomMeal) {
             CreateCustomMealView()
         }
-        .sheet(isPresented: $showingMealPrepCalculator) {
+        .adaptiveSheet(isPresented: $showingMealPrepCalculator) {
             MealPrepCalculatorView()
         }
-        .sheet(isPresented: $showingMealTemplates) {
+        .adaptiveSheet(isPresented: $showingMealTemplates) {
             MealTemplatesView()
         }
-        .sheet(item: $showingCustomMealDetail) { customMeal in
+        .adaptiveSheet(item: $showingCustomMealDetail) { customMeal in
             CustomMealDetailView(customMeal: customMeal) { customMeal in
                 customMealManager.logCustomMeal(customMeal, to: foodLogManager)
             }

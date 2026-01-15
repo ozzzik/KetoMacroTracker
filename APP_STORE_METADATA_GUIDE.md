@@ -55,8 +55,8 @@ KEY FEATURES:
 ⚡ Premium Features (In-App Purchase)
 • Unlimited daily food logging (free: 7 items/day)
 • Advanced analytics and insights
-• Barcode scanning
-• Custom meal creation
+• Barcode scanning for instant food identification
+• Custom meal creation and recipes
 • Data export capabilities
 • Priority support
 
@@ -82,14 +82,14 @@ Premium Yearly: $7.99/year - Save 33% with annual billing
 Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions by going to your account settings on the App Store after purchase.
 
 Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-Privacy Policy: https://ozzzik.github.io/WaterReminderApp/privacy-policy.html
+Privacy Policy: https://ozzzik.github.io/KetoMacroTracker/privacy-policy.html
 
 Download now and take control of your keto journey!
 ```
 
 **Character Count**: ~1,600 characters (well under 4,000 limit)
 
-**Note**: Update the Privacy Policy URL with your actual privacy policy link. The example uses a placeholder URL.
+**Note**: The Privacy Policy URL is correct and working at https://ozzzik.github.io/KetoMacroTracker/privacy-policy.html
 
 ---
 

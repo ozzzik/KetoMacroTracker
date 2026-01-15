@@ -63,7 +63,7 @@ struct PaywallView: View {
                                 FeatureRowView(
                                     icon: "heart.fill",
                                     title: "HealthKit Integration",
-                                    description: "Sync your nutrition data with Apple Health"
+                                    description: "Sync your nutrition data with Apple Health using HealthKit"
                                 )
                                 
                                 FeatureRowView(

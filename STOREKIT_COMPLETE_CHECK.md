@@ -110,3 +110,4 @@ If StoreKit still doesn't work, you can use debug mode:
 - Click "Activate Premium (Debug)" button
 - This simulates premium activation for testing
 
+

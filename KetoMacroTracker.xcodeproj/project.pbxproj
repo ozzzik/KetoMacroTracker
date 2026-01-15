@@ -6,37 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		A1D8B0F12E8B000100F0A36E /* NetCarbTrendManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8B0F02E8B000100F0A36E /* NetCarbTrendManagerTests.swift */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		A1D892872E88B96300F0A36E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A1D8926C2E88B96200F0A36E /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A1D892732E88B96200F0A36E;
-			remoteInfo = KetoMacroTracker;
-		};
-		A1D892912E88B96300F0A36E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A1D8926C2E88B96200F0A36E /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A1D892732E88B96200F0A36E;
-			remoteInfo = KetoMacroTracker;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		A1D892742E88B96200F0A36E /* KetoMacroTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KetoMacroTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1D892862E88B96300F0A36E /* KetoMacroTrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KetoMacroTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1D892902E88B96300F0A36E /* KetoMacroTrackerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KetoMacroTrackerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1D8B0F02E8B000100F0A36E /* NetCarbTrendManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetCarbTrendManagerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1FE1AE62F11BF9A008144A8 /* Exceptions for "KetoMacroTracker" folder in "KetoMacroTracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A1D892732E88B96200F0A36E /* KetoMacroTracker */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A1D892762E88B96200F0A36E /* KetoMacroTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1FE1AE62F11BF9A008144A8 /* Exceptions for "KetoMacroTracker" folder in "KetoMacroTracker" target */,
+			);
 			path = KetoMacroTracker;
 			sourceTree = "<group>";
 		};
@@ -44,20 +34,6 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1D892712E88B96200F0A36E /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1D892832E88B96300F0A36E /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1D8928D2E88B96300F0A36E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -80,8 +56,6 @@
 			isa = PBXGroup;
 			children = (
 				A1D892742E88B96200F0A36E /* KetoMacroTracker.app */,
-				A1D892862E88B96300F0A36E /* KetoMacroTrackerTests.xctest */,
-				A1D892902E88B96300F0A36E /* KetoMacroTrackerUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -119,46 +93,6 @@
 			productReference = A1D892742E88B96200F0A36E /* KetoMacroTracker.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A1D892852E88B96300F0A36E /* KetoMacroTrackerTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1D8929D2E88B96300F0A36E /* Build configuration list for PBXNativeTarget "KetoMacroTrackerTests" */;
-			buildPhases = (
-				A1D892822E88B96300F0A36E /* Sources */,
-				A1D892832E88B96300F0A36E /* Frameworks */,
-				A1D892842E88B96300F0A36E /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A1D892882E88B96300F0A36E /* PBXTargetDependency */,
-			);
-			name = KetoMacroTrackerTests;
-			packageProductDependencies = (
-			);
-			productName = KetoMacroTrackerTests;
-			productReference = A1D892862E88B96300F0A36E /* KetoMacroTrackerTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		A1D8928F2E88B96300F0A36E /* KetoMacroTrackerUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1D892A02E88B96300F0A36E /* Build configuration list for PBXNativeTarget "KetoMacroTrackerUITests" */;
-			buildPhases = (
-				A1D8928C2E88B96300F0A36E /* Sources */,
-				A1D8928D2E88B96300F0A36E /* Frameworks */,
-				A1D8928E2E88B96300F0A36E /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A1D892922E88B96300F0A36E /* PBXTargetDependency */,
-			);
-			name = KetoMacroTrackerUITests;
-			packageProductDependencies = (
-			);
-			productName = KetoMacroTrackerUITests;
-			productReference = A1D892902E88B96300F0A36E /* KetoMacroTrackerUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -171,14 +105,6 @@
 				TargetAttributes = {
 					A1D892732E88B96200F0A36E = {
 						CreatedOnToolsVersion = 16.4;
-					};
-					A1D892852E88B96300F0A36E = {
-						CreatedOnToolsVersion = 16.4;
-						TestTargetID = A1D892732E88B96200F0A36E;
-					};
-					A1D8928F2E88B96300F0A36E = {
-						CreatedOnToolsVersion = 16.4;
-						TestTargetID = A1D892732E88B96200F0A36E;
 					};
 				};
 			};
@@ -197,28 +123,12 @@
 			projectRoot = "";
 			targets = (
 				A1D892732E88B96200F0A36E /* KetoMacroTracker */,
-				A1D892852E88B96300F0A36E /* KetoMacroTrackerTests */,
-				A1D8928F2E88B96300F0A36E /* KetoMacroTrackerUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A1D892722E88B96200F0A36E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1D892842E88B96300F0A36E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1D8928E2E88B96300F0A36E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -235,35 +145,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A1D892822E88B96300F0A36E /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A1D8B0F12E8B000100F0A36E /* NetCarbTrendManagerTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A1D8928C2E88B96300F0A36E /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		A1D892882E88B96300F0A36E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A1D892732E88B96200F0A36E /* KetoMacroTracker */;
-			targetProxy = A1D892872E88B96300F0A36E /* PBXContainerItemProxy */;
-		};
-		A1D892922E88B96300F0A36E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A1D892732E88B96200F0A36E /* KetoMacroTracker */;
-			targetProxy = A1D892912E88B96300F0A36E /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1D892982E88B96300F0A36E /* Debug */ = {
@@ -392,20 +274,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = KetoMacroTracker/KetoMacroTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X3BKBK8VYL;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to scan barcodes for food products.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to read your weight and body measurements from Apple Health.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs access to write your nutrition data (protein, carbs, fat, calories, water) to Apple Health.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KetoMacroTracker/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -424,20 +301,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = KetoMacroTracker/KetoMacroTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X3BKBK8VYL;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to scan barcodes for food products.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to read your weight and body measurements from Apple Health.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs access to write your nutrition data (protein, carbs, fat, calories, water) to Apple Health.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KetoMacroTracker/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -448,78 +320,6 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		A1D8929E2E88B96300F0A36E /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X3BKBK8VYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.whio.KetoMacroTrackerTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KetoMacroTracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KetoMacroTracker";
-			};
-			name = Debug;
-		};
-		A1D8929F2E88B96300F0A36E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X3BKBK8VYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.whio.KetoMacroTrackerTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KetoMacroTracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KetoMacroTracker";
-			};
-			name = Release;
-		};
-		A1D892A12E88B96300F0A36E /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X3BKBK8VYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.whio.KetoMacroTrackerUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KetoMacroTracker;
-			};
-			name = Debug;
-		};
-		A1D892A22E88B96300F0A36E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X3BKBK8VYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.whio.KetoMacroTrackerUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KetoMacroTracker;
 			};
 			name = Release;
 		};
@@ -540,24 +340,6 @@
 			buildConfigurations = (
 				A1D8929B2E88B96300F0A36E /* Debug */,
 				A1D8929C2E88B96300F0A36E /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A1D8929D2E88B96300F0A36E /* Build configuration list for PBXNativeTarget "KetoMacroTrackerTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1D8929E2E88B96300F0A36E /* Debug */,
-				A1D8929F2E88B96300F0A36E /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A1D892A02E88B96300F0A36E /* Build configuration list for PBXNativeTarget "KetoMacroTrackerUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1D892A12E88B96300F0A36E /* Debug */,
-				A1D892A22E88B96300F0A36E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

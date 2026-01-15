@@ -96,7 +96,7 @@ You need to create **2 subscription products**:
 4. **Pricing and Availability**:
    - Click **"Add Subscription Pricing"**
    - Select **Base Territory** (usually United States)
-   - Set price: **$49.99** (or your chosen price)
+   - Set price: **$7.99** (or your chosen price)
    - Click **"Next"** → Review → **"Add"**
 
 5. **Localization**:
@@ -140,10 +140,10 @@ These must **exactly match** what's in your code (`SubscriptionManager.swift`).
 ### Pricing Considerations
 
 **Current Configuration**:
-- Monthly: $4.99/month
-- Yearly: $49.99/year (equivalent to $4.17/month)
+- Monthly: $0.99/month
+- Yearly: $7.99/year (equivalent to $0.67/month)
 
-**Savings**: ~17% discount for yearly subscription
+**Savings**: ~33% discount for yearly subscription
 
 You can adjust prices, but make sure:
 - Yearly is cheaper than 12x monthly (to show value)

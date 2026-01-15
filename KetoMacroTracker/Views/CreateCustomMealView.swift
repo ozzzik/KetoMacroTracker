@@ -63,7 +63,7 @@ struct CreateCustomMealView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingFoodSearch) {
+        .adaptiveSheet(isPresented: $showingFoodSearch) {
             FoodSearchView(
                 foodLogManager: foodLogManager,
                 quickAddManager: quickAddManager,
@@ -72,7 +72,7 @@ struct CreateCustomMealView: View {
                 }
             )
         }
-        .sheet(isPresented: $showingStarredFoods) {
+        .adaptiveSheet(isPresented: $showingStarredFoods) {
             StarredFoodsPickerView(
                 quickAddManager: quickAddManager,
                 onFoodSelected: { food, servings in
@@ -88,7 +88,7 @@ struct CreateCustomMealView: View {
         } message: {
             Text(limitAlertMessage)
         }
-        .sheet(isPresented: $showingPaywall) {
+        .adaptiveSheet(isPresented: $showingPaywall) {
             PaywallView()
                 .environmentObject(subscriptionManager)
         }
@@ -330,16 +330,16 @@ struct CreateCustomMealView: View {
         
         Task { @MainActor in
             do {
-                try await customMealManager.createCustomMeal(
-                name: builder.name,
-                category: builder.category,
-                foods: builder.foods,
-                prepTime: builder.prepTime,
-                difficulty: builder.difficulty,
-                description: builder.description,
-                subscriptionManager: subscriptionManager
-            )
-            
+                _ = try customMealManager.createCustomMeal(
+                    name: builder.name,
+                    category: builder.category,
+                    foods: builder.foods,
+                    prepTime: builder.prepTime,
+                    difficulty: builder.difficulty,
+                    description: builder.description,
+                    subscriptionManager: subscriptionManager
+                )
+                
                 dismiss()
             } catch CustomMealError.limitReached(let limit, _) {
                 limitAlertMessage = "You've reached your limit of \(limit) custom meals. Upgrade to Premium for unlimited custom meals!"

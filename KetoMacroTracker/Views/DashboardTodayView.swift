@@ -16,10 +16,13 @@ struct DashboardTodayView: View {
     @StateObject private var fastingManager = FastingManager.shared
     @State private var showingFoodSearch = false
     @State private var showingQuickAdd = false
-    @State private var showingMacroBreakdown = false
     @State private var showingFastingTimer = false
+    @State private var showingPaywall = false
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
     @State private var selectedMacroType: MacroType = .protein
+    @State private var selectedMacroTypeForSheet: MacroType? = nil
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @Environment(\.scenePhase) private var scenePhase
     
     // Computed properties from food log
     private var protein: Double { foodLogManager.totalProtein }
@@ -120,7 +123,7 @@ struct DashboardTodayView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(spacing: 24) {
@@ -158,23 +161,26 @@ struct DashboardTodayView: View {
             }
             .navigationBarHidden(true)
         }
-        .navigationViewStyle(StackNavigationViewStyle())
-        .sheet(isPresented: $showingFoodSearch) {
+        .adaptiveSheet(isPresented: $showingFoodSearch) {
             FoodSearchView(foodLogManager: foodLogManager, quickAddManager: quickAddManager)
         }
-        .sheet(isPresented: $showingQuickAdd) {
+        .adaptiveSheet(isPresented: $showingQuickAdd) {
             QuickAddView(quickAddManager: quickAddManager, foodLogManager: foodLogManager)
         }
-        .sheet(isPresented: $showingMacroBreakdown) {
+        .adaptiveSheet(item: $selectedMacroTypeForSheet) { macroType in
             MacroBreakdownView(
                 foodLogManager: foodLogManager,
-                macroType: selectedMacroType,
-                totalAmount: macroAmount(for: selectedMacroType),
-                goalAmount: macroGoal(for: selectedMacroType),
-                color: macroColor(for: selectedMacroType)
+                macroType: macroType,
+                totalAmount: macroAmount(for: macroType),
+                goalAmount: macroGoal(for: macroType),
+                color: macroColor(for: macroType)
             )
         }
-        .sheet(isPresented: $showingFastingTimer) {
+        .adaptiveSheet(isPresented: $showingPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
+        }
+        .adaptiveSheet(isPresented: $showingFastingTimer) {
             FastingTimerView()
         }
         .overlay {
@@ -192,6 +198,27 @@ struct DashboardTodayView: View {
         .overlay(
             GuidedTourOverlay(tourManager: guidedTourManager)
         )
+        .onAppear {
+            // Show paywall on first launch if not subscribed
+            let hasSeenPaywall = UserDefaults.standard.bool(forKey: "hasSeenPaywall")
+            let hasLoggedFood = !foodLogManager.todaysFoods.isEmpty
+            
+            if !hasSeenPaywall && !hasLoggedFood && !subscriptionManager.isPremiumActive {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showingPaywall = true
+                    UserDefaults.standard.set(true, forKey: "hasSeenPaywall")
+                }
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            // Dismiss sheets when app goes to background to prevent trait collection crashes
+            if newPhase == .background || newPhase == .inactive {
+                showingFoodSearch = false
+                showingQuickAdd = false
+                showingPaywall = false
+                selectedMacroTypeForSheet = nil
+            }
+        }
     }
     
     // MARK: - Header Section
@@ -235,9 +262,10 @@ struct DashboardTodayView: View {
                     .tourAction(buttonId: "star_button", tourManager: guidedTourManager)
                     
                     // Plus button for adding new items
-                    Button(action: {
-                        showingFoodSearch = true
-                    }) {
+                        Button(action: {
+                            // Always allow food search - paywall is shown separately on first launch
+                            showingFoodSearch = true
+                        }) {
                         Image(systemName: "plus")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
@@ -480,7 +508,7 @@ struct DashboardTodayView: View {
                 HStack(spacing: 20) {
                     Button(action: {
                         selectedMacroType = .protein
-                        showingMacroBreakdown = true
+                        selectedMacroTypeForSheet = .protein
                     }) {
                         progressRing(
                             value: safeDivision(protein, macroGoals.protein),
@@ -495,7 +523,7 @@ struct DashboardTodayView: View {
                     
                     Button(action: {
                         selectedMacroType = .carbs
-                        showingMacroBreakdown = true
+                        selectedMacroTypeForSheet = .carbs
                     }) {
                         progressRing(
                             value: safeDivision(carbs, macroGoals.carbs),
@@ -510,7 +538,7 @@ struct DashboardTodayView: View {
                     
                     Button(action: {
                         selectedMacroType = .fat
-                        showingMacroBreakdown = true
+                        selectedMacroTypeForSheet = .fat
                     }) {
                         progressRing(
                             value: safeDivision(fat, macroGoals.fat),
@@ -525,7 +553,7 @@ struct DashboardTodayView: View {
                     
                     Button(action: {
                         selectedMacroType = .calories
-                        showingMacroBreakdown = true
+                        selectedMacroTypeForSheet = .calories
                     }) {
                         progressRing(
                             value: safeDivision(calories, macroGoals.calories),

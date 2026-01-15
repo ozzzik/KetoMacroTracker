@@ -124,3 +124,4 @@ Both products are configured with:
 - Localized names and descriptions
 - Correct subscription periods (P1M for monthly, P1Y for yearly)
 
+

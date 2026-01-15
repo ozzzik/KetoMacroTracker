@@ -45,6 +45,50 @@ struct FoodSearchView: View {
     private let openFoodFactsAPI = OpenFoodFactsAPI()
     private let settingsManager = AppSettingsManager.shared
     
+    // Premium limits
+    static let freeDailySearchLimit = 3 // 2-3 range, using 3
+    
+    // Daily search tracking
+    private var todaySearchCount: Int {
+        let todayKey = dateFormatter.string(from: Date())
+        let lastSearchDate = UserDefaults.standard.string(forKey: "LastSearchDate") ?? ""
+        
+        // Reset if new day
+        if lastSearchDate != todayKey {
+            return 0
+        }
+        
+        return UserDefaults.standard.integer(forKey: "TodaySearchCount")
+    }
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+    
+    private func canSearchToday() -> Bool {
+        if subscriptionManager.isPremiumActive {
+            return true // Unlimited for premium
+        }
+        return todaySearchCount < Self.freeDailySearchLimit
+    }
+    
+    private func incrementSearchCount() {
+        let todayKey = dateFormatter.string(from: Date())
+        let lastSearchDate = UserDefaults.standard.string(forKey: "LastSearchDate") ?? ""
+        
+        // Reset if new day
+        if lastSearchDate != todayKey {
+            UserDefaults.standard.set(0, forKey: "TodaySearchCount")
+            UserDefaults.standard.set(todayKey, forKey: "LastSearchDate")
+        }
+        
+        let currentCount = UserDefaults.standard.integer(forKey: "TodaySearchCount")
+        UserDefaults.standard.set(currentCount + 1, forKey: "TodaySearchCount")
+        UserDefaults.standard.synchronize()
+    }
+    
     // MARK: - Computed Properties
     private var searchBarSection: some View {
         VStack(spacing: 12) {
@@ -229,7 +273,7 @@ struct FoodSearchView: View {
                     }
             )
         }
-        .sheet(isPresented: $showingManualEntry) {
+        .adaptiveSheet(isPresented: $showingManualEntry) {
             ManualFoodEntryView(foodLogManager: foodLogManager, quickAddManager: quickAddManager, sourceFood: selectedFoodForManualEntry) { food, servings in
                 print("🔄 FoodSearchView: ManualFoodEntryView onSave callback called")
                 print("🔄 Servings: \(servings)")
@@ -247,17 +291,19 @@ struct FoodSearchView: View {
         .onChange(of: showingManualEntry) { _, newValue in
             print("📱 showingManualEntry changed to: \(newValue)")
         }
-        .sheet(isPresented: $showingBarcodeScanner) {
-            if subscriptionManager.isPremiumActive {
-                BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
-                    handleBarcodeScanned(barcode)
+        .adaptiveSheet(isPresented: $showingBarcodeScanner) {
+            Group {
+                if subscriptionManager.isPremiumActive {
+                    BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
+                        handleBarcodeScanned(barcode)
+                    }
+                } else {
+                    PaywallView()
+                        .environmentObject(subscriptionManager)
                 }
-            } else {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
             }
         }
-        .sheet(isPresented: $showingBarcodeHistory) {
+        .adaptiveSheet(isPresented: $showingBarcodeHistory) {
             BarcodeHistoryView(
                 barcodeHistoryManager: barcodeHistoryManager,
                 onFoodSelected: { food in
@@ -274,36 +320,40 @@ struct FoodSearchView: View {
         .alert("Added to Quick Add!", isPresented: $showingQuickAddSuccess) {
             Button("OK") { }
         }
-        .sheet(isPresented: $showingUnitSelection) {
-            if let food = selectedFoodForUnitSelection {
-                UnitSelectionView(food: food) { food, amount, unit in
-                    print("🔄 FoodSearchView: UnitSelectionView callback called")
-                    print("  - Food: \(food.description)")
-                    print("  - Amount: \(amount) \(unit)")
-                    
-                    // Convert to servings first
-                    let servings = convertToServings(amount: amount, unit: unit, food: food)
-                    print("  - Converted to \(servings) servings")
-                    
-                    // If callback is provided (for custom meals), use it
-                    if let callback = onFoodSelected {
-                        print("  - Using onFoodSelected callback (custom meal)")
-                        callback(food, servings)
-                        dismiss()
-                    } else {
-                        print("  - Adding directly to food log")
-                        addFoodToLog(food, amount: amount, unit: unit)
+        .adaptiveSheet(isPresented: $showingUnitSelection) {
+            Group {
+                if let food = selectedFoodForUnitSelection {
+                    UnitSelectionView(food: food) { food, amount, unit in
+                        print("🔄 FoodSearchView: UnitSelectionView callback called")
+                        print("  - Food: \(food.description)")
+                        print("  - Amount: \(amount) \(unit)")
+                        
+                        // Convert to servings first
+                        let servings = convertToServings(amount: amount, unit: unit, food: food)
+                        print("  - Converted to \(servings) servings")
+                        
+                        // If callback is provided (for custom meals), use it
+                        if let callback = onFoodSelected {
+                            print("  - Using onFoodSelected callback (custom meal)")
+                            callback(food, servings)
+                            dismiss()
+                        } else {
+                            print("  - Adding directly to food log")
+                            addFoodToLog(food, amount: amount, unit: unit)
+                        }
                     }
+                } else {
+                    Text("Error: No food selected")
                 }
-            } else {
-                Text("Error: No food selected")
             }
         }
-        .sheet(isPresented: $showingQuickAddCategory) {
-            if let food = selectedFoodForQuickAdd {
-                QuickAddCategoryView(food: food, quickAddManager: quickAddManager)
-            } else {
-                Text("Error: No food selected")
+        .adaptiveSheet(isPresented: $showingQuickAddCategory) {
+            Group {
+                if let food = selectedFoodForQuickAdd {
+                    QuickAddCategoryView(food: food, quickAddManager: quickAddManager)
+                } else {
+                    Text("Error: No food selected")
+                }
             }
         }
         .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
@@ -314,7 +364,16 @@ struct FoodSearchView: View {
         } message: {
             Text(limitAlertMessage)
         }
-        .sheet(isPresented: $showingPaywall) {
+        .onAppear {
+            // Reset search count if new day
+            let todayKey = dateFormatter.string(from: Date())
+            let lastSearchDate = UserDefaults.standard.string(forKey: "LastSearchDate") ?? ""
+            if lastSearchDate != todayKey {
+                UserDefaults.standard.set(0, forKey: "TodaySearchCount")
+                UserDefaults.standard.set(todayKey, forKey: "LastSearchDate")
+            }
+        }
+        .adaptiveSheet(isPresented: $showingPaywall) {
             PaywallView()
                 .environmentObject(subscriptionManager)
         }
@@ -354,9 +413,20 @@ struct FoodSearchView: View {
     private func searchFoods() {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
+        // Check daily search limit for free users
+        if !canSearchToday() {
+            let limit = Self.freeDailySearchLimit
+            limitAlertMessage = "You've reached your daily search limit of \(limit) searches. Upgrade to Premium for unlimited searches!"
+            showingLimitAlert = true
+            return
+        }
+        
         isLoading = true
         searchResults = []
         searchError = nil
+        
+        // Increment search count
+        incrementSearchCount()
         
         // Refresh country settings in case they changed
         openFoodFactsAPI.refreshCountriesFromSettings()
@@ -503,7 +573,7 @@ struct FoodSearchView: View {
         
         // Check daily limit before adding
         if !subscriptionManager.isPremiumActive && !foodLogManager.canAddFoodToday(isPremium: subscriptionManager.isPremiumActive) {
-            let current = foodLogManager.todayFoodCount
+            _ = foodLogManager.todayFoodCount
             let limit = FoodLogManager.freeDailyFoodLimit
             limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
             showingLimitAlert = true

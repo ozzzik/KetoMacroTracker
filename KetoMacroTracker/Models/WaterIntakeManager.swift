@@ -78,6 +78,26 @@ class WaterIntakeManager: ObservableObject {
         saveTodaysWater()
     }
     
+    /// Check for day transition and reload today's water if needed
+    /// Call this when app comes to foreground to ensure values reset for new day
+    func checkForDayTransition() {
+        let todayKey = dateFormatter.string(from: Date())
+        let fullKey = "\(userDefaultsKey)_\(todayKey)"
+        
+        // Check if saved water is from today
+        if let savedDateKey = UserDefaults.standard.string(forKey: "\(fullKey)_date"),
+           savedDateKey == todayKey {
+            // Same day, load the saved value
+            if let saved = UserDefaults.standard.object(forKey: fullKey) as? Double {
+                todaysWaterIntake = saved
+            }
+        } else {
+            // New day, reset to zero
+            print("📅 Day transition detected for water intake, resetting to 0")
+            resetDay()
+        }
+    }
+    
     // MARK: - Private Methods
     
     private func loadTodaysWater() {

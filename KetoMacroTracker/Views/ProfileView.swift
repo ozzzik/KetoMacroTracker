@@ -34,7 +34,7 @@ struct ProfileView: View {
     private let goals = ["Lose Fat", "Maintain Weight", "Gain Weight"]
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(spacing: 24) {
@@ -114,25 +114,6 @@ struct ProfileView: View {
                                     Spacer()
                                 }
                                 .padding(.top, 8)
-                                
-                                #if DEBUG
-                                // Debug button to activate premium for testing
-                                Button(action: {
-                                    subscriptionManager.activateSubscription()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "wrench.and.screwdriver")
-                                        Text("Activate Premium (Debug)")
-                                    }
-                                    .font(AppTypography.caption)
-                                    .foregroundColor(.orange)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(6)
-                                }
-                                .padding(.top, 8)
-                                #endif
                             }
                         }
                     }
@@ -356,39 +337,105 @@ struct ProfileView: View {
                         }
                     }
                     
-                    // Health Integration Section
+                    // HealthKit Integration Section
                     AppCard {
                         VStack(spacing: 16) {
-                            Text("Apple Health")
-                                .font(AppTypography.title3)
-                                .foregroundColor(AppColors.text)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            HStack(spacing: 8) {
-                                Image(systemName: "heart.fill")
-                                    .foregroundColor(.gray)
-                                    .font(.title3)
-                                
-                                Text("Health Integration")
-                                    .font(AppTypography.body)
-                                    .foregroundColor(.gray)
+                            HStack {
+                                Text("HealthKit Integration")
+                                    .font(AppTypography.title3)
+                                    .foregroundColor(AppColors.text)
                                 
                                 Spacer()
                                 
-                                Text("Coming Soon...")
-                                    .font(AppTypography.caption)
-                                    .foregroundColor(.gray)
-                                    .italic()
+                                // HealthKit badge
+                                HStack(spacing: 4) {
+                                    Image(systemName: "heart.fill")
+                                        .font(.caption)
+                                    Text("HealthKit")
+                                        .font(AppTypography.caption)
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(6)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(8)
                             
-                            Text("Sync nutrition data with Apple Health app")
-                                .font(AppTypography.caption)
-                                .foregroundColor(AppColors.secondaryText)
-                                .multilineTextAlignment(.center)
+                            if !subscriptionManager.isPremiumActive {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundColor(AppColors.accent)
+                                        .font(.caption)
+                                    
+                                    Text("Premium Feature")
+                                        .font(AppTypography.caption)
+                                        .foregroundColor(AppColors.secondaryText)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(AppColors.accent.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            
+                            Button(action: {
+                                if !subscriptionManager.isPremiumActive {
+                                    showingPaywall = true
+                                } else {
+                                    showingHealthIntegration = true
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "heart.fill")
+                                        .foregroundColor(subscriptionManager.isPremiumActive ? .red : .gray)
+                                        .font(.title3)
+                                    
+                                    Text("Manage HealthKit Integration")
+                                        .font(AppTypography.body)
+                                        .foregroundColor(subscriptionManager.isPremiumActive ? AppColors.text : .gray)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(AppColors.secondaryText)
+                                        .font(.caption)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(subscriptionManager.isPremiumActive ? Color.red.opacity(0.1) : Color.gray.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            .disabled(!subscriptionManager.isPremiumActive)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("This app uses HealthKit to:")
+                                    .font(AppTypography.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(AppColors.text)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .font(.caption2)
+                                            .foregroundColor(.blue)
+                                        Text("Read: Weight, body fat, lean body mass")
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                    
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.up.circle.fill")
+                                            .font(.caption2)
+                                            .foregroundColor(.green)
+                                        Text("Write: Protein, carbs, fat, calories, water")
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
                         }
                     }
                     
@@ -702,43 +749,41 @@ struct ProfileView: View {
                 .background(AppColors.background)
             }
             .navigationTitle("Profile")
-            .sheet(isPresented: $showingEditProfile) {
+            .adaptiveSheet(isPresented: $showingEditProfile) {
                 EditProfileView(profileManager: profileManager) {
                     showingEditProfile = false
                 }
             }
-            .sheet(isPresented: $showingDatabaseSettings) {
+            .adaptiveSheet(isPresented: $showingDatabaseSettings) {
                 DatabaseSettingsView()
             }
-            .sheet(isPresented: $showingAchievements) {
+            .adaptiveSheet(isPresented: $showingAchievements) {
                 AchievementsView()
             }
-            .sheet(isPresented: $showingDataExport) {
+            .adaptiveSheet(isPresented: $showingDataExport) {
                 DataExportView()
             }
-            .sheet(isPresented: $showingNotificationSettings) {
+            .adaptiveSheet(isPresented: $showingNotificationSettings) {
                 NotificationSettingsView()
             }
-            .sheet(isPresented: $showingAPIUsageStats) {
+            .adaptiveSheet(isPresented: $showingAPIUsageStats) {
                 APIUsageStatsView()
             }
             .fullScreenCover(isPresented: $showingTutorial) {
                 TutorialView(tutorialManager: tutorialManager)
             }
-            // Health Integration temporarily disabled - coming soon
-            // .sheet(isPresented: $showingHealthIntegration) {
-            //     HealthIntegrationView()
-            // }
-            .sheet(isPresented: $showingPaywall, onDismiss: {
-                print("🔄 ProfileView: PaywallView sheet dismissed")
-            }) {
+            .adaptiveSheet(isPresented: $showingHealthIntegration) {
+                HealthIntegrationView()
+                    .environmentObject(subscriptionManager)
+            }
+            .adaptiveSheet(isPresented: $showingPaywall) {
                 PaywallView()
                     .environmentObject(subscriptionManager)
                     .onAppear {
                         print("🔄 ProfileView: PaywallView sheet appeared")
                     }
             }
-            .sheet(isPresented: $showingSubscription) {
+            .adaptiveSheet(isPresented: $showingSubscription) {
                 SubscriptionView()
                     .environmentObject(subscriptionManager)
             }

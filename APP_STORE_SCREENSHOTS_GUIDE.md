@@ -98,3 +98,4 @@ For App Store Connect, you typically need:
 
 **Answer**: Use **iPhone 14 Pro Max** simulator for 1284 × 2778px screenshots (most current and recommended).
 
+

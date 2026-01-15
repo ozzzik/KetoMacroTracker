@@ -14,14 +14,100 @@ struct HealthIntegrationView: View {
     @StateObject private var waterManager = WaterIntakeManager.shared
     @StateObject private var fastingManager = FastingManager.shared
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @Environment(\.dismiss) private var dismiss
     
     @State private var showingAuthorizationAlert = false
     @State private var showingPaywall = false
     @State private var autoSyncEnabled = UserDefaults.standard.bool(forKey: "HealthKitAutoSync")
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
+                // HealthKit Header
+                Section {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                                .font(.title2)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("HealthKit Integration")
+                                    .font(AppTypography.headline)
+                                    .foregroundColor(AppColors.text)
+                                
+                                Text("Sync nutrition data with Apple Health")
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(AppColors.secondaryText)
+                            }
+                            
+                            Spacer()
+                            
+                            // HealthKit badge
+                            Text("HealthKit")
+                                .font(AppTypography.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(6)
+                        }
+                        
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("What This Integration Does:")
+                                .font(AppTypography.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppColors.text)
+                            
+                            Text("Sync your nutrition data between this app and Apple Health. Your data stays on your device and is never shared with third parties.")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.secondaryText)
+                                .padding(.bottom, 4)
+                            
+                            Text("This app uses HealthKit to:")
+                                .font(AppTypography.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppColors.text)
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .foregroundColor(.blue)
+                                        .font(.caption)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Read from Health:")
+                                            .font(AppTypography.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(AppColors.text)
+                                        Text("Weight, body fat percentage, and lean body mass")
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                }
+                                
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Write to Health:")
+                                            .font(AppTypography.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(AppColors.text)
+                                        Text("Dietary protein, carbohydrates, fat, calories, and water intake")
+                                            .font(AppTypography.caption)
+                                            .foregroundColor(AppColors.secondaryText)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                
                 // Authorization Status
                 Section(header: Text("Authorization")) {
                     HStack {
@@ -124,13 +210,24 @@ struct HealthIntegrationView: View {
                     }
                 }
             }
-            .navigationTitle("Health Integration")
+            .navigationTitle("HealthKit Integration")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
             .onAppear {
                 if healthKitManager.isAuthorized {
                     healthKitManager.loadLatestWeight()
                 }
             }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
         }
     }
     

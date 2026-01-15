@@ -14,6 +14,11 @@ struct NetCarbTrendChart: View {
     @ObservedObject private var trendManager = NetCarbTrendManager.shared
     
     let goalLimit: Double = 20.0
+    let isPremium: Bool
+    
+    init(isPremium: Bool = true) {
+        self.isPremium = isPremium
+    }
     
     var body: some View {
         VStack(spacing: 16) {
@@ -42,11 +47,19 @@ struct NetCarbTrendChart: View {
     private var periodSelector: some View {
         Picker("Time Period", selection: $selectedPeriod) {
             Text("7 Days").tag(TimePeriod.week)
-            Text("30 Days").tag(TimePeriod.month)
-            Text("90 Days").tag(TimePeriod.quarter)
+            if isPremium {
+                Text("30 Days").tag(TimePeriod.month)
+                Text("90 Days").tag(TimePeriod.quarter)
+            }
         }
         .pickerStyle(SegmentedPickerStyle())
         .padding(.horizontal)
+        .onAppear {
+            // Reset to week if not premium and selected period is not available
+            if !isPremium && selectedPeriod != .week {
+                selectedPeriod = .week
+            }
+        }
     }
     
     // MARK: - Chart View
@@ -268,6 +281,6 @@ struct NetCarbTrendChart: View {
 
 // MARK: - Preview
 #Preview {
-    NetCarbTrendChart()
+    NetCarbTrendChart(isPremium: true)
         .padding()
 }

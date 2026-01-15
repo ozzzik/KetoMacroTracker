@@ -70,7 +70,7 @@ struct HistoryView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // Date Selector
@@ -330,7 +330,7 @@ struct DatePickerView: View {
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack {
                 DatePicker(
                     "Select Date",

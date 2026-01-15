@@ -53,6 +53,9 @@ class SubscriptionManager: ObservableObject {
     /// Whether subscription status has been checked at least once
     @Published var hasCheckedSubscriptionStatus = false
     
+    /// Whether user has already used a free trial (prevents multiple trials)
+    @Published var hasUsedFreeTrial = false
+    
     // MARK: - Private State
     
     /// Task for listening to transaction updates
@@ -70,6 +73,7 @@ class SubscriptionManager: ObservableObject {
             print("🔧 Starting product load in init...")
             await loadProducts()
             await updateSubscriptionStatus()
+            await checkIfUserHasUsedTrial()
         }
     }
     
@@ -83,7 +87,6 @@ class SubscriptionManager: ObservableObject {
     func loadProducts() async {
         print("📦 Loading products...")
         print("📦 Product IDs to load: \(Array(productIds))")
-        print("📦 Current thread: \(Thread.isMainThread ? "Main" : "Background")")
         
         // Diagnostic: Check if running on simulator
         #if targetEnvironment(simulator)
@@ -172,6 +175,16 @@ class SubscriptionManager: ObservableObject {
                 let transaction = try checkVerified(verification)
                 print("✅ Transaction verified: \(transaction.id)")
                 
+                // Check if this was a free trial (introductory offer)
+                if transaction.ownershipType == .purchased {
+                    // Check if this transaction has an introductory offer period
+                    // If user just started a subscription, mark that they've used a trial
+                    await MainActor.run {
+                        hasUsedFreeTrial = true
+                        print("📊 Marked user as having used free trial")
+                    }
+                }
+                
                 // Update subscription status
                 await updateSubscriptionStatus()
                 
@@ -181,8 +194,8 @@ class SubscriptionManager: ObservableObject {
                 
             case .userCancelled:
                 print("⚠️ User cancelled purchase")
-                // Don't update subscription status when user cancels
-                return
+                // Throw a specific error for cancellation so caller can handle it
+                throw StoreKitError.userCancelled
                 
             case .pending:
                 print("⏳ Purchase pending approval")
@@ -334,6 +347,12 @@ class SubscriptionManager: ObservableObject {
                 print("📅 Expiration date: \(expiration)")
             }
         }
+        
+        // If subscription expired or not subscribed, re-check if user has used trial
+        // This ensures we detect trial usage even after expiration
+        if status == .expired || status == .notSubscribed {
+            await checkIfUserHasUsedTrial()
+        }
     }
     
     // MARK: - Restore Purchases
@@ -415,7 +434,89 @@ class SubscriptionManager: ObservableObject {
             }
         }
         
+        // If no expiration or expired, definitely not premium
         return false
+    }
+    
+    /// Check if free trial is available for a product
+    func isFreeTrialAvailable(for product: Product) -> Bool {
+        // Check if user has already used a free trial
+        if hasUsedFreeTrial {
+            return false
+        }
+        
+        // Check if product has an introductory offer (free trial)
+        guard let subscriptionInfo = product.subscription,
+              let introductoryOffer = subscriptionInfo.introductoryOffer else {
+            return false
+        }
+        
+        // Check if introductory offer is a free trial
+        return introductoryOffer.paymentMode == .freeTrial
+    }
+    
+    /// Check if user has ever had a subscription (including trials)
+    func checkIfUserHasUsedTrial() async {
+        print("🔍 Checking if user has used free trial...")
+        
+        var foundTrial = false
+        
+        // First, check current entitlements (active subscriptions)
+        for await result in Transaction.currentEntitlements {
+            do {
+                let transaction = try checkVerified(result)
+                
+                // Check if this is one of our subscription products
+                if productIds.contains(transaction.productID) {
+                    print("✅ Found active entitlement: \(transaction.productID)")
+                    foundTrial = true
+                    break
+                }
+            } catch {
+                // Skip unverified transactions
+                continue
+            }
+        }
+        
+        // If not found in current entitlements, check ALL transaction history
+        // This includes expired subscriptions, which are removed from currentEntitlements
+        if !foundTrial {
+            print("🔍 No active entitlements found, checking transaction history...")
+            
+            // Check all transactions (including expired ones)
+            // We only need to check the most recent transaction for each product
+            var checkedProducts = Set<String>()
+            
+            for await result in Transaction.all {
+                do {
+                    let transaction = try checkVerified(result)
+                    
+                    // Check if this is one of our subscription products
+                    if productIds.contains(transaction.productID) && !checkedProducts.contains(transaction.productID) {
+                        print("✅ Found transaction history for: \(transaction.productID)")
+                        print("   - Transaction date: \(transaction.purchaseDate)")
+                        print("   - Expiration date: \(transaction.expirationDate?.description ?? "none")")
+                        
+                        // If user has any transaction history for our products, they've used a trial
+                        // (since free trial is the introductory offer)
+                        foundTrial = true
+                        checkedProducts.insert(transaction.productID)
+                        
+                        // We found at least one, that's enough to know they've used a trial
+                        break
+                    }
+                } catch {
+                    // Skip unverified transactions
+                    continue
+                }
+            }
+        }
+        
+        await MainActor.run {
+            hasUsedFreeTrial = foundTrial
+            print("📊 Has used free trial: \(hasUsedFreeTrial)")
+            print("ℹ️ Note: App Store Connect also prevents multiple free trials per subscription group")
+        }
     }
     
     /// Get monthly product

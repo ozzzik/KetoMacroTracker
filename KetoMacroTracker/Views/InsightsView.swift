@@ -11,12 +11,18 @@ struct InsightsView: View {
     @StateObject private var trendManager = NetCarbTrendManager.shared
     @StateObject private var profileManager = ProfileManager.shared
     @EnvironmentObject var foodLogManager: FoodLogManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @State private var selectedInsight: InsightType = .trends
     @State private var showingDetailView = false
+    @State private var showingPaywall = false
+    
+    private var isPremium: Bool {
+        subscriptionManager.isPremiumActive
+    }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // Header with current status
@@ -41,6 +47,10 @@ struct InsightsView: View {
             .onChange(of: foodLogManager.todaysFoods.count) {
                 // Update trends when food log changes
                 trendManager.updateTrends()
+            }
+            .adaptiveSheet(isPresented: $showingPaywall) {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
             }
         }
     }
@@ -206,53 +216,69 @@ struct InsightsView: View {
             ketosisContent
         case .analytics:
             VStack(spacing: 20) {
-                AnalyticsView()
-                    .padding(.horizontal, -16) // Remove double padding
-                
-                // Predictive Insights
-                NavigationLink(destination: PredictiveInsightsView()) {
-                    AppCard {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Goal Predictions")
-                                    .font(AppTypography.title3)
-                                    .foregroundColor(AppColors.text)
+                if isPremium {
+                    AnalyticsView()
+                        .padding(.horizontal, -16) // Remove double padding
+                    
+                    // Predictive Insights
+                    NavigationLink(destination: PredictiveInsightsView()) {
+                        AppCard {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Goal Predictions")
+                                        .font(AppTypography.title3)
+                                        .foregroundColor(AppColors.text)
+                                    
+                                    Text("See when you'll reach your goals")
+                                        .font(AppTypography.caption)
+                                        .foregroundColor(AppColors.secondaryText)
+                                }
                                 
-                                Text("See when you'll reach your goals")
-                                    .font(AppTypography.caption)
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
                                     .foregroundColor(AppColors.secondaryText)
                             }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(AppColors.secondaryText)
                         }
                     }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    paywallCard
                 }
-                .buttonStyle(PlainButtonStyle())
             }
         }
     }
     
     // MARK: - Trends Content
     private var trendsContent: some View {
-        let weeklySummaries = trendManager.getWeeklySummaries(limit: 4)
+        // Limit to 7 days for free users
+        let maxDays = isPremium ? nil : 7
+        let weeklySummaries = trendManager.getWeeklySummaries(limit: isPremium ? 4 : 1)
         return VStack(spacing: 16) {
             if trendManager.trends.isEmpty {
                 emptyDataCard
             } else {
                 AppCard {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Net Carb Trends")
-                            .font(AppTypography.title3)
-                            .foregroundColor(AppColors.text)
+                        HStack {
+                            Text("Net Carb Trends")
+                                .font(AppTypography.title3)
+                                .foregroundColor(AppColors.text)
+                            
+                            Spacer()
+                            
+                            if !isPremium {
+                                Text("Last 7 days")
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(AppColors.secondaryText)
+                            }
+                        }
                         
-                        NetCarbTrendChart()
+                        NetCarbTrendChart(isPremium: isPremium)
                     }
                 }
                 
-                // Additional trend insights
+                // Additional trend insights (limited for free users)
                 if !weeklySummaries.isEmpty {
                     WeeklyTrendSummaryView(
                         summaries: weeklySummaries,
@@ -261,6 +287,11 @@ struct InsightsView: View {
                 }
                 
                 trendInsightsCard
+                
+                // Show upgrade prompt for free users
+                if !isPremium {
+                    upgradePromptCard
+                }
             }
         }
     }
@@ -735,6 +766,60 @@ struct InsightsView: View {
         }
         
         return insights
+    }
+    
+    // MARK: - Paywall Card
+    private var paywallCard: some View {
+        AppCard {
+            VStack(spacing: 20) {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(AppColors.primary)
+                
+                Text("Advanced Analytics")
+                    .font(AppTypography.title2)
+                    .foregroundColor(AppColors.text)
+                
+                Text("Unlock advanced analytics, extended trends, and predictive insights with Premium.")
+                    .font(AppTypography.body)
+                    .foregroundColor(AppColors.secondaryText)
+                    .multilineTextAlignment(.center)
+                
+                Button("Upgrade to Premium") {
+                    showingPaywall = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.vertical, 20)
+        }
+    }
+    
+    // MARK: - Upgrade Prompt Card
+    private var upgradePromptCard: some View {
+        AppCard {
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "crown.fill")
+                        .foregroundColor(.yellow)
+                    
+                    Text("Unlock Extended Insights")
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColors.text)
+                    
+                    Spacer()
+                }
+                
+                Text("Upgrade to Premium to see trends beyond 7 days, advanced analytics, and goal predictions.")
+                    .font(AppTypography.caption)
+                    .foregroundColor(AppColors.secondaryText)
+                
+                Button("Upgrade") {
+                    showingPaywall = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
     }
 }
 

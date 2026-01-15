@@ -284,7 +284,7 @@ class FoodLogManager: ObservableObject {
         }
     }
     
-    private func loadTodaysFoods() {
+    func loadTodaysFoods() {
         // Check for day transition first
         historicalDataManager.checkForDayTransition()
         
@@ -310,6 +310,32 @@ class FoodLogManager: ObservableObject {
             // Clear corrupted data
             UserDefaults.standard.removeObject(forKey: userDefaultsKey)
             todaysFoods = []
+        }
+    }
+    
+    /// Check for day transition and reload today's foods if needed
+    /// Call this when app comes to foreground to ensure values reset for new day
+    @MainActor
+    func checkForDayTransition() {
+        // Check for day transition first
+        let wasDayTransition = historicalDataManager.checkForDayTransition()
+        
+        if wasDayTransition {
+            print("📅 Day transition detected, reloading today's foods...")
+            // Reload today's foods (which will now be empty for the new day)
+            loadTodaysFoods()
+        } else {
+            // Even if no transition, filter out any foods that aren't from today
+            // (in case the app was open when day changed)
+            let today = dateFormatter.string(from: Date())
+            let beforeCount = todaysFoods.count
+            todaysFoods = todaysFoods.filter { 
+                dateFormatter.string(from: $0.dateAdded) == today 
+            }
+            if beforeCount != todaysFoods.count {
+                print("📅 Filtered out \(beforeCount - todaysFoods.count) food items from previous day")
+                saveTodaysFoods()
+            }
         }
     }
     

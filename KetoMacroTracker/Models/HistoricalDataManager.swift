@@ -71,7 +71,8 @@ class HistoricalDataManager: ObservableObject {
     }
     
     // MARK: - Day Transition Logic
-    func checkForDayTransition() {
+    @discardableResult
+    func checkForDayTransition() -> Bool {
         let today = Date()
         let todayString = dateFormatter.string(from: today)
         
@@ -83,10 +84,15 @@ class HistoricalDataManager: ObservableObject {
             
             // Archive any pending data from the previous day
             archivePreviousDayData(from: lastSavedDate)
+            
+            // Update the last saved date
+            UserDefaults.standard.set(todayString, forKey: "LastSavedDate")
+            return true
         }
         
-        // Update the last saved date
+        // Update the last saved date (even if no transition)
         UserDefaults.standard.set(todayString, forKey: "LastSavedDate")
+        return false
     }
     
     private func archivePreviousDayData(from dateString: String) {

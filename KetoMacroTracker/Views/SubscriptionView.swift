@@ -13,7 +13,11 @@ struct SubscriptionView: View {
     private var subscriptionMessage: String {
         switch subscriptionManager.subscriptionStatus {
         case .notSubscribed:
-            return "Start your free trial and unlock all premium features for tracking your keto macros."
+            if subscriptionManager.hasUsedFreeTrial {
+                return "Subscribe to unlock all premium features for tracking your keto macros."
+            } else {
+                return "Start your free trial and unlock all premium features for tracking your keto macros."
+            }
         case .expired:
             return "Your subscription has ended. Subscribe to continue enjoying premium features."
         case .inGracePeriod:
@@ -27,9 +31,10 @@ struct SubscriptionView: View {
     private var buttonText: String {
         switch subscriptionManager.subscriptionStatus {
         case .notSubscribed:
-            return "Start Free Trial"
+            // If they've used a trial, show "Subscribe" instead of "Start Free Trial"
+            return subscriptionManager.hasUsedFreeTrial ? "Subscribe Now" : "Start Free Trial"
         case .expired:
-            return "Subscribe Now"
+            return "Renew Subscription"
         case .inGracePeriod:
             return "Renew Subscription"
         case .subscribed:
@@ -133,18 +138,6 @@ struct SubscriptionView: View {
                     .foregroundColor(AppColors.primary)
                     .disabled(subscriptionManager.isLoading)
                     
-                    #if DEBUG
-                    // Debug button to activate premium
-                    Button("Activate Premium (Debug)") {
-                        subscriptionManager.activateSubscription()
-                        purchaseMessage = "Premium activated (Debug Mode)"
-                        showingPurchaseAlert = true
-                    }
-                    .font(AppTypography.subheadline)
-                    .foregroundColor(.orange)
-                    .disabled(subscriptionManager.isLoading)
-                    #endif
-                    
                     // Terms and Privacy Policy Links
                     VStack(spacing: 8) {
                         HStack(spacing: 16) {
@@ -161,7 +154,19 @@ struct SubscriptionView: View {
                                 .foregroundColor(AppColors.primary)
                         }
                         
-                        Text("Cancel anytime. Subscription automatically renews unless auto-renew is turned off at least 24 hours before the end of the current period.")
+                        if !subscriptionManager.hasUsedFreeTrial {
+                            Text("Start your free trial. Cancel anytime during the trial and you'll keep access until the trial ends. No charge will occur.")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.secondaryText)
+                                .multilineTextAlignment(.center)
+                        } else if subscriptionManager.subscriptionStatus == .expired {
+                            Text("Your subscription has ended. Subscribe to continue enjoying premium features.")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        Text("Subscription automatically renews unless auto-renew is turned off at least 24 hours before the end of the current period.")
                             .font(AppTypography.caption)
                             .foregroundColor(AppColors.secondaryText)
                             .multilineTextAlignment(.center)
@@ -185,11 +190,6 @@ struct SubscriptionView: View {
                     selectedProduct = monthlyProduct
                 } else {
                     print("⚠️ No products available for selection")
-                    #if DEBUG
-                    // In debug mode, show a message about using debug activation
-                    purchaseMessage = "No products loaded. Use 'Activate Premium (Debug)' button in Profile for testing."
-                    showingPurchaseAlert = true
-                    #endif
                 }
             }
             .alert("Purchase Result", isPresented: $showingPurchaseAlert) {
@@ -244,16 +244,32 @@ struct SubscriptionView: View {
             do {
                 try await subscriptionManager.purchase(product)
                 
-                print("✅ Purchase completed successfully")
-                purchaseMessage = "Subscription activated successfully!"
-                showingPurchaseAlert = true
+                // Wait a moment for subscription status to update
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
                 
-                // Wait for subscription status to update, then dismiss
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                // Only show success if subscription is actually active
                 if subscriptionManager.isPremiumActive {
+                    print("✅ Purchase completed successfully")
+                    purchaseMessage = "Subscription activated successfully!"
+                    showingPurchaseAlert = true
+                    
+                    // Wait a bit more then dismiss
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 more second
                     dismiss()
+                } else {
+                    // Purchase completed but subscription not active (likely cancelled)
+                    print("⚠️ Purchase completed but subscription not active (user may have cancelled)")
+                    // Don't show any message for cancellation
                 }
             } catch {
+                // Check if it's a StoreKit user cancellation error
+                if let storeKitError = error as? StoreKitError {
+                    if case .userCancelled = storeKitError {
+                        print("⚠️ User cancelled purchase - no message shown")
+                        return // Silently handle cancellation
+                    }
+                }
+                
                 let errorMessage = error.localizedDescription
                 print("❌ Purchase error: \(errorMessage)")
                 

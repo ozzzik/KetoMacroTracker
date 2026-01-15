@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct QuickAddView: View {
     @Environment(\.dismiss) var dismiss
@@ -47,7 +48,7 @@ struct QuickAddView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Search Bar
                 HStack {
@@ -266,7 +267,7 @@ struct QuickAddView: View {
             } message: {
                 Text(limitAlertMessage)
             }
-            .sheet(isPresented: $showingPaywall) {
+            .adaptiveSheet(isPresented: $showingPaywall) {
                 PaywallView()
                     .environmentObject(subscriptionManager)
             }
@@ -288,6 +289,7 @@ struct QuickAddItemRow: View {
     @State private var servingSize = "1.0"
     @State private var showingServingsInput = false
     @State private var showingEditSheet = false
+    @State private var isServingSizeFocused: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -366,8 +368,8 @@ struct QuickAddItemRow: View {
             }
         }
         .padding(.vertical, 8)
-        .sheet(isPresented: $showingServingsInput) {
-            NavigationView {
+        .adaptiveSheet(isPresented: $showingServingsInput) {
+            NavigationStack {
                 VStack(spacing: 20) {
                     Text("Add \(item.name)")
                         .font(.title2)
@@ -384,12 +386,14 @@ struct QuickAddItemRow: View {
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
                     
-                    TextField("1.0", text: $servingSize)
+                    AutoFocusTextField(text: $servingSize, isFocused: $isServingSizeFocused)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .keyboardType(.decimalPad)
                         .padding(.horizontal)
                         .font(.title)
                         .multilineTextAlignment(.center)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
                     
                     Button(action: {
                         if let servings = Double(servingSize), servings > 0, servings.isFinite {
@@ -424,9 +428,17 @@ struct QuickAddItemRow: View {
                         }
                     }
                 }
+                .onAppear {
+                    // Auto-focus the field immediately when sheet appears
+                    isServingSizeFocused = true
+                    // Also try after a tiny delay as backup
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        isServingSizeFocused = true
+                    }
+                }
             }
         }
-        .sheet(isPresented: $showingEditSheet) {
+        .adaptiveSheet(isPresented: $showingEditSheet) {
             EditQuickAddItemView(item: item, onSave: onEdit)
         }
     }
@@ -519,161 +531,163 @@ struct EditQuickAddItemView: View {
     }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 8) {
-                    Text("Edit Quick Add Item")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text(item.name)
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top)
-                
-                // Form
-                VStack(spacing: 16) {
-                    // Name field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Item Name")
-                            .font(.headline)
-                        TextField("Enter item name", text: $editedName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onSubmit {
-                                hideKeyboard()
-                            }
-                    }
-                    
-                    // Brand field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Brand/Company (Optional)")
-                            .font(.headline)
-                        TextField("Enter brand name", text: $editedBrandName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onSubmit {
-                                hideKeyboard()
-                            }
-                    }
-                    
-                    // Category selection
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Category")
-                            .font(.headline)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text("Edit Quick Add Item")
+                            .font(.title2)
+                            .fontWeight(.bold)
                         
-                        if isCreatingNewCategory {
-                            TextField("Enter new category", text: $customCategory)
+                        Text(item.name)
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top)
+                    
+                    // Form
+                    VStack(spacing: 16) {
+                        // Name field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Item Name")
+                                .font(.headline)
+                            TextField("Enter item name", text: $editedName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .onSubmit {
                                     hideKeyboard()
                                 }
-                        } else {
-                            Picker("Category", selection: $selectedCategory) {
-                                ForEach(predefinedCategories, id: \.self) { category in
-                                    Text(category).tag(category)
-                                }
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
                         }
                         
-                        Button(action: {
-                            isCreatingNewCategory.toggle()
-                            if isCreatingNewCategory {
-                                customCategory = selectedCategory
-                            }
-                        }) {
-                            Text(isCreatingNewCategory ? "Choose from list" : "Create new category")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    
-                    // Serving size customization
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Serving Size")
-                            .font(.headline)
-                        
-                        HStack {
-                            TextField("Amount", text: $customServingSize)
+                        // Brand field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Brand/Company (Optional)")
+                                .font(.headline)
+                            TextField("Enter brand name", text: $editedBrandName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .keyboardType(.decimalPad)
-                                .frame(width: 80)
                                 .onSubmit {
                                     hideKeyboard()
                                 }
+                        }
+                        
+                        // Category selection
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Category")
+                                .font(.headline)
                             
-                            Picker("Unit", selection: $customServingUnit) {
-                                ForEach(unitOptions, id: \.0) { unit in
-                                    Text(unit.1).tag(unit.0)
+                            if isCreatingNewCategory {
+                                TextField("Enter new category", text: $customCategory)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .onSubmit {
+                                        hideKeyboard()
+                                    }
+                            } else {
+                                Picker("Category", selection: $selectedCategory) {
+                                    ForEach(predefinedCategories, id: \.self) { category in
+                                        Text(category).tag(category)
+                                    }
                                 }
+                                .pickerStyle(MenuPickerStyle())
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
                             }
-                            .pickerStyle(MenuPickerStyle())
-                            .frame(maxWidth: .infinity)
+                            
+                            Button(action: {
+                                isCreatingNewCategory.toggle()
+                                if isCreatingNewCategory {
+                                    customCategory = selectedCategory
+                                }
+                            }) {
+                                Text(isCreatingNewCategory ? "Choose from list" : "Create new category")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
                         }
-                    }
-                    
-                    // Nutrition preview
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Nutrition per \(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)")
-                            .font(.headline)
                         
-                        HStack(spacing: 16) {
-                            NutritionBadge(label: "Protein", value: adjustedNutritionValues.protein, unit: "g", color: .green)
-                            NutritionBadge(label: "Net Carbs", value: adjustedNutritionValues.netCarbs, unit: "g", color: .orange)
-                            NutritionBadge(label: "Fat", value: adjustedNutritionValues.fat, unit: "g", color: .blue)
-                            NutritionBadge(label: "Cal", value: adjustedNutritionValues.calories, unit: "", color: .purple)
+                        // Serving size customization
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Serving Size")
+                                .font(.headline)
+                            
+                            HStack {
+                                TextField("Amount", text: $customServingSize)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .keyboardType(.decimalPad)
+                                    .frame(width: 80)
+                                
+                                Picker("Unit", selection: $customServingUnit) {
+                                    ForEach(unitOptions, id: \.0) { unit in
+                                        Text(unit.1).tag(unit.0)
+                                    }
+                                }
+                                .pickerStyle(MenuPickerStyle())
+                                .frame(maxWidth: .infinity)
+                            }
                         }
+                        
+                        // Nutrition preview
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Nutrition per \(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)")
+                                .font(.headline)
+                            
+                            HStack(spacing: 16) {
+                                NutritionBadge(label: "Protein", value: adjustedNutritionValues.protein, unit: "g", color: .green)
+                                NutritionBadge(label: "Net Carbs", value: adjustedNutritionValues.netCarbs, unit: "g", color: .orange)
+                                NutritionBadge(label: "Fat", value: adjustedNutritionValues.fat, unit: "g", color: .blue)
+                                NutritionBadge(label: "Cal", value: adjustedNutritionValues.calories, unit: "", color: .purple)
+                            }
+                        }
+                        .padding(.top, 8)
                     }
-                    .padding(.top, 8)
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Save button
-                Button("Save Changes") {
-                    let finalCategory = isCreatingNewCategory ? customCategory : selectedCategory
-                    let finalServingSize = "\(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)"
+                    .padding(.horizontal)
                     
-                    let updatedItem = QuickAddItem(
-                        id: item.id,
-                        name: editedName,
-                        protein: adjustedNutritionValues.protein,
-                        fat: adjustedNutritionValues.fat,
-                        totalCarbs: item.originalTotalCarbs * calculateServingMultiplier(),
-                        fiber: item.originalFiber * calculateServingMultiplier(),
-                        sugarAlcohols: item.originalSugarAlcohols * calculateServingMultiplier(),
-                        netCarbs: adjustedNutritionValues.netCarbs,
-                        calories: adjustedNutritionValues.calories,
-                        servingSize: finalServingSize,
-                        category: finalCategory,
-                        useCount: item.useCount,
-                        lastUsed: item.lastUsed,
-                        createdAt: item.createdAt,
-                        brandName: editedBrandName.isEmpty ? nil : editedBrandName,
-                        // Keep original data unchanged
-                        originalProtein: item.originalProtein,
-                        originalFat: item.originalFat,
-                        originalTotalCarbs: item.originalTotalCarbs,
-                        originalFiber: item.originalFiber,
-                        originalSugarAlcohols: item.originalSugarAlcohols,
-                        originalNetCarbs: item.originalNetCarbs,
-                        originalCalories: item.originalCalories,
-                        originalServingSize: item.originalServingSize,
-                        originalServingSizeUnit: item.originalServingSizeUnit
-                    )
-                    
-                    onSave(updatedItem)
-                    dismiss()
+                    // Save button
+                    Button("Save Changes") {
+                        let finalCategory = isCreatingNewCategory ? customCategory : selectedCategory
+                        let finalServingSize = "\(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)"
+                        
+                        let updatedItem = QuickAddItem(
+                            id: item.id,
+                            name: editedName,
+                            protein: adjustedNutritionValues.protein,
+                            fat: adjustedNutritionValues.fat,
+                            totalCarbs: item.originalTotalCarbs * calculateServingMultiplier(),
+                            fiber: item.originalFiber * calculateServingMultiplier(),
+                            sugarAlcohols: item.originalSugarAlcohols * calculateServingMultiplier(),
+                            netCarbs: adjustedNutritionValues.netCarbs,
+                            calories: adjustedNutritionValues.calories,
+                            servingSize: finalServingSize,
+                            category: finalCategory,
+                            useCount: item.useCount,
+                            lastUsed: item.lastUsed,
+                            createdAt: item.createdAt,
+                            brandName: editedBrandName.isEmpty ? nil : editedBrandName,
+                            // Keep original data unchanged
+                            originalProtein: item.originalProtein,
+                            originalFat: item.originalFat,
+                            originalTotalCarbs: item.originalTotalCarbs,
+                            originalFiber: item.originalFiber,
+                            originalSugarAlcohols: item.originalSugarAlcohols,
+                            originalNetCarbs: item.originalNetCarbs,
+                            originalCalories: item.originalCalories,
+                            originalServingSize: item.originalServingSize,
+                            originalServingSizeUnit: item.originalServingSizeUnit
+                        )
+                        
+                        onSave(updatedItem)
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.bottom, 20)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.bottom)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                hideKeyboard()
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -684,13 +698,6 @@ struct EditQuickAddItemView: View {
                 }
             }
         }
-        .background(
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    hideKeyboard()
-                }
-        )
         .onAppear {
             // Initialize form with current item data
             editedName = item.name
@@ -713,6 +720,60 @@ struct EditQuickAddItemView: View {
     // Helper function to hide keyboard
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
+// Custom TextField that automatically becomes first responder
+struct AutoFocusTextField: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.placeholder = "1.0"
+        textField.keyboardType = .decimalPad
+        textField.textAlignment = .center
+        textField.font = .systemFont(ofSize: 28, weight: .regular)
+        textField.autocorrectionType = .no
+        textField.autocapitalizationType = .none
+        textField.addTarget(context.coordinator, action: #selector(Coordinator.textChanged), for: .editingChanged)
+        return textField
+    }
+    
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        // Update text when binding changes
+        if uiView.text != text {
+            uiView.text = text
+        }
+        
+        // Handle focus - try immediately first
+        if isFocused && !uiView.isFirstResponder {
+            uiView.becomeFirstResponder()
+            // Also try async as backup
+            DispatchQueue.main.async {
+                if !uiView.isFirstResponder {
+                    uiView.becomeFirstResponder()
+                }
+            }
+        } else if !isFocused && uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        var parent: AutoFocusTextField
+        
+        init(_ parent: AutoFocusTextField) {
+            self.parent = parent
+        }
+        
+        @objc func textChanged(_ textField: UITextField) {
+            parent.text = textField.text ?? ""
+        }
     }
 }
 

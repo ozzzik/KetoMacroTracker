@@ -257,11 +257,20 @@ struct FoodBreakdownRow: View {
 }
 
 // MARK: - Macro Type Enum
-enum MacroType {
+enum MacroType: Identifiable {
     case protein
     case carbs
     case fat
     case calories
+    
+    var id: String {
+        switch self {
+        case .protein: return "protein"
+        case .carbs: return "carbs"
+        case .fat: return "fat"
+        case .calories: return "calories"
+        }
+    }
 }
 
 // MARK: - Preview

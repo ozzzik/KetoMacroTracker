@@ -13,6 +13,7 @@ struct ContentView: View {
     @StateObject private var demoManager = DemoModeManager.shared
     @StateObject private var onboardingManager = OnboardingManager.shared
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @State private var selectedTab = 0
     @Environment(\.scenePhase) private var scenePhase
     
@@ -96,6 +97,20 @@ struct ContentView: View {
                     // Force immediate write to disk
                     UserDefaults.standard.synchronize()
                     print("✅ All data saved successfully")
+                }
+            }
+            
+            // Check subscription status and day transitions when app comes to foreground
+            // This ensures we detect subscription expiration and reset daily values for new day
+            if newPhase == .active && oldPhase != .active {
+                print("🔄 App entered foreground, checking subscription status and day transitions...")
+                Task { @MainActor in
+                    // Check for day transitions first (before subscription check)
+                    foodLogManager.checkForDayTransition()
+                    WaterIntakeManager.shared.checkForDayTransition()
+                    
+                    // Then check subscription status
+                    await subscriptionManager.updateSubscriptionStatus()
                 }
             }
         }
