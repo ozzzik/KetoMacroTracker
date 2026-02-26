@@ -14,6 +14,7 @@ struct KetoMacroTrackerApp: App {
     @StateObject private var tutorialManager = TutorialManager()
     @StateObject private var guidedTourManager = GuidedTourManager()
     @StateObject private var subscriptionManager = SubscriptionManager.shared
+    @StateObject private var adManager = AdManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -27,6 +28,13 @@ struct KetoMacroTrackerApp: App {
                     .environmentObject(tutorialManager)
                     .environmentObject(guidedTourManager)
                     .environmentObject(subscriptionManager)
+                    .environmentObject(adManager)
+                    .onAppear {
+                        adManager.onReward = { [adManager] in
+                            DispatchQueue.main.async { adManager.grantAdFreeForRestOfDay() }
+                        }
+                        adManager.start()
+                    }
             }
         }
     }

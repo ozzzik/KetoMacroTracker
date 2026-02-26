@@ -13,11 +13,6 @@ struct AnalyticsView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @State private var selectedTimeframe: Timeframe = .week
-    @State private var showingPaywall = false
-    
-    private var isPremium: Bool {
-        subscriptionManager.isPremiumActive
-    }
     
     enum Timeframe: String, CaseIterable {
         case week = "7 Days"
@@ -26,11 +21,7 @@ struct AnalyticsView: View {
     }
     
     private var availableTimeframes: [Timeframe] {
-        if isPremium {
-            return Timeframe.allCases
-        } else {
-            return [.week] // Free users only get 7 days
-        }
+        Timeframe.allCases
     }
     
     private var days: Int {
@@ -54,11 +45,6 @@ struct AnalyticsView: View {
                     .pickerStyle(SegmentedPickerStyle())
                     .padding()
                     
-                    // Show upgrade prompt if not premium
-                    if !isPremium {
-                        upgradePromptCard
-                    }
-                    
                     // Macro Efficiency Score
                     efficiencyScoreSection
                     
@@ -72,38 +58,6 @@ struct AnalyticsView: View {
             }
             .navigationTitle("Analytics")
             .navigationBarTitleDisplayMode(.large)
-            .adaptiveSheet(isPresented: $showingPaywall) {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
-            }
-        }
-    }
-    
-    // MARK: - Upgrade Prompt Card
-    private var upgradePromptCard: some View {
-        AppCard {
-            VStack(spacing: 12) {
-                HStack {
-                    Image(systemName: "crown.fill")
-                        .foregroundColor(.yellow)
-                    
-                    Text("Unlock Extended Analytics")
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColors.text)
-                    
-                    Spacer()
-                }
-                
-                Text("Upgrade to Premium to view 30-day and 90-day analytics, advanced correlations, and trend analysis.")
-                    .font(AppTypography.caption)
-                    .foregroundColor(AppColors.secondaryText)
-                
-                Button("Upgrade") {
-                    showingPaywall = true
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
         }
     }
     

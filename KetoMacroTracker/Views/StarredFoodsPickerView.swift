@@ -236,6 +236,8 @@ struct StarredFoodsPickerView: View {
         let carbsValue = hasOriginalData && item.originalTotalCarbs >= 0 ? item.originalTotalCarbs : item.totalCarbs
         let fiberValue = hasOriginalData && item.originalFiber >= 0 ? item.originalFiber : item.fiber
         let caloriesValue = hasOriginalData && item.originalCalories >= 0 ? item.originalCalories : item.calories
+        let cholesterolValue = (hasOriginalData ? (item.originalCholesterol ?? item.cholesterol ?? 0) : (item.cholesterol ?? 0))
+        let saturatedFatValue = (hasOriginalData ? (item.originalSaturatedFat ?? item.saturatedFat ?? 0) : (item.saturatedFat ?? 0))
         let servingSizeValue = hasOriginalData ? item.originalServingSize : 100.0
         let servingUnitValue = hasOriginalData && !item.originalServingSizeUnit.isEmpty && item.originalServingSizeUnit != "serving" ? item.originalServingSizeUnit : "g"
         
@@ -311,6 +313,32 @@ struct StarredFoodsPickerView: View {
                 unitName: "KCAL",
                 value: caloriesValue,
                 rank: 300,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1253,
+                nutrientName: "Cholesterol",
+                nutrientNumber: "601",
+                unitName: "MG",
+                value: cholesterolValue,
+                rank: 1500,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1258,
+                nutrientName: "Fatty acids, total saturated",
+                nutrientNumber: "606",
+                unitName: "G",
+                value: saturatedFatValue,
+                rank: 970,
                 indentLevel: 1,
                 foodNutrientId: nil,
                 dataPoints: nil,

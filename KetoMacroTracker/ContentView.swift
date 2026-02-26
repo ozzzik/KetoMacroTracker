@@ -100,17 +100,10 @@ struct ContentView: View {
                 }
             }
             
-            // Check subscription status and day transitions when app comes to foreground
-            // This ensures we detect subscription expiration and reset daily values for new day
             if newPhase == .active && oldPhase != .active {
-                print("🔄 App entered foreground, checking subscription status and day transitions...")
                 Task { @MainActor in
-                    // Check for day transitions first (before subscription check)
                     foodLogManager.checkForDayTransition()
                     WaterIntakeManager.shared.checkForDayTransition()
-                    
-                    // Then check subscription status
-                    await subscriptionManager.updateSubscriptionStatus()
                 }
             }
         }

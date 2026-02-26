@@ -9,7 +9,6 @@ struct QuickAddView: View {
     @StateObject private var historicalDataManager = HistoricalDataManager.shared
     @State private var selectedCategory = "All"
     @State private var showingAddToQuickAdd = false
-    @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var limitAlertMessage = ""
     @State private var searchText = ""
@@ -260,16 +259,9 @@ struct QuickAddView: View {
                     }
             )
             .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
-                Button("Upgrade to Premium") {
-                    showingPaywall = true
-                }
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(limitAlertMessage)
-            }
-            .adaptiveSheet(isPresented: $showingPaywall) {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
             }
         }
     }
@@ -289,7 +281,7 @@ struct QuickAddItemRow: View {
     @State private var servingSize = "1.0"
     @State private var showingServingsInput = false
     @State private var showingEditSheet = false
-    @State private var isServingSizeFocused: Bool = false
+    @State private var servingSizeFieldFocused = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -336,6 +328,7 @@ struct QuickAddItemRow: View {
                     // Add button - always prompt for amount
                     Button(action: {
                         servingSize = "1.0"
+                        servingSizeFieldFocused = true
                         showingServingsInput = true
                     }) {
                         Image(systemName: "plus.circle.fill")
@@ -352,6 +345,29 @@ struct QuickAddItemRow: View {
                 NutritionBadge(label: "Net Carbs", value: item.netCarbs, unit: "g", color: .orange)
                 NutritionBadge(label: "Fat", value: item.fat, unit: "g", color: .blue)
                 NutritionBadge(label: "Cal", value: item.calories, unit: "", color: .purple)
+            }
+            
+            // Cholesterol & Saturated Fat (compact single line when available)
+            let chol = item.cholesterol ?? 0
+            let satFat = item.saturatedFat ?? 0
+            if chol > 0 || satFat > 0 {
+                HStack(spacing: 4) {
+                    if chol > 0 {
+                        Text("Chol \(String(format: "%.0f", chol))mg")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    if chol > 0 && satFat > 0 {
+                        Text("·")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    if satFat > 0 {
+                        Text("Sat \(String(format: "%.1f", satFat))g")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             
             // Serving Size Info
@@ -386,17 +402,13 @@ struct QuickAddItemRow: View {
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
                     
-                    AutoFocusTextField(text: $servingSize, isFocused: $isServingSizeFocused)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .keyboardType(.decimalPad)
+                    AutoFocusTextField(text: $servingSize, isFocused: $servingSizeFieldFocused)
                         .padding(.horizontal)
-                        .font(.title)
-                        .multilineTextAlignment(.center)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                        .frame(height: 50)
                     
                     Button(action: {
                         if let servings = Double(servingSize), servings > 0, servings.isFinite {
+                            servingSizeFieldFocused = false
                             showingServingsInput = false
                             // Small delay to ensure sheet dismisses
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -420,20 +432,26 @@ struct QuickAddItemRow: View {
                     Spacer()
                 }
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(true)
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            servingSize = "1.0"
+                            servingSizeFieldFocused = false
+                            showingServingsInput = false
+                        }) {
+                            HStack {
+                                Image(systemName: "chevron.left")
+                                Text("Back")
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Cancel") {
                             servingSize = "1.0"
+                            servingSizeFieldFocused = false
                             showingServingsInput = false
                         }
-                    }
-                }
-                .onAppear {
-                    // Auto-focus the field immediately when sheet appears
-                    isServingSizeFocused = true
-                    // Also try after a tiny delay as backup
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        isServingSizeFocused = true
                     }
                 }
             }
@@ -461,6 +479,8 @@ struct EditQuickAddItemView: View {
     @State private var isCreatingNewCategory = false
     @State private var customServingSize = "1.0"
     @State private var customServingUnit = "servings"
+    @State private var editedCholesterol = ""
+    @State private var editedSaturatedFat = ""
     
     private let predefinedCategories = ["General", "Protein", "Dairy", "Vegetables", "Fruits", "Nuts", "Grains", "Beverages", "Snacks", "Breakfast", "Lunch", "Dinner", "Cooking"]
     
@@ -477,13 +497,42 @@ struct EditQuickAddItemView: View {
     ]
     
     // Computed properties for adjusted nutrition values based on original data
-    private var adjustedNutritionValues: (protein: Double, netCarbs: Double, fat: Double, calories: Double) {
+    private var adjustedNutritionValues: (protein: Double, netCarbs: Double, fat: Double, calories: Double, cholesterol: Double, saturatedFat: Double) {
         let servingMultiplier = calculateServingMultiplier()
+        
+        // For cholesterol and saturated fat: if edited, use edited value directly (it's for the new serving size)
+        // Otherwise, calculate from original values
+        let editedCholValue = Double(editedCholesterol)
+        let editedSatFatValue = Double(editedSaturatedFat)
+        
+        let cholValue: Double
+        let satFatValue: Double
+        
+        if let editedChol = editedCholValue, editedChol > 0 {
+            // User edited it - use the edited value directly (it's for the new serving size)
+            cholValue = editedChol
+        } else {
+            // Calculate from original
+            let origChol = item.originalCholesterol ?? item.cholesterol ?? 0
+            cholValue = origChol * servingMultiplier
+        }
+        
+        if let editedSat = editedSatFatValue, editedSat > 0 {
+            // User edited it - use the edited value directly (it's for the new serving size)
+            satFatValue = editedSat
+        } else {
+            // Calculate from original
+            let origSat = item.originalSaturatedFat ?? item.saturatedFat ?? 0
+            satFatValue = origSat * servingMultiplier
+        }
+        
         return (
             protein: item.originalProtein * servingMultiplier,
             netCarbs: item.originalNetCarbs * servingMultiplier,
             fat: item.originalFat * servingMultiplier,
-            calories: item.originalCalories * servingMultiplier
+            calories: item.originalCalories * servingMultiplier,
+            cholesterol: cholValue,
+            saturatedFat: satFatValue
         )
     }
     
@@ -628,6 +677,36 @@ struct EditQuickAddItemView: View {
                             }
                         }
                         
+                        // Cholesterol & Saturated Fat editing (optional)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Cholesterol & Saturated Fat (Optional)")
+                                .font(.headline)
+                            
+                            HStack(spacing: 16) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Cholesterol (mg)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextField("0", text: $editedCholesterol)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                        .keyboardType(.decimalPad)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Saturated Fat (g)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextField("0", text: $editedSaturatedFat)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                        .keyboardType(.decimalPad)
+                                }
+                            }
+                            
+                            Text("Leave empty to use calculated values. Values are for the serving size above.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
                         // Nutrition preview
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Nutrition per \(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)")
@@ -639,6 +718,29 @@ struct EditQuickAddItemView: View {
                                 NutritionBadge(label: "Fat", value: adjustedNutritionValues.fat, unit: "g", color: .blue)
                                 NutritionBadge(label: "Cal", value: adjustedNutritionValues.calories, unit: "", color: .purple)
                             }
+                            
+                            // Show cholesterol and saturated fat in preview if they exist
+                            let chol = adjustedNutritionValues.cholesterol
+                            let satFat = adjustedNutritionValues.saturatedFat
+                            if chol > 0 || satFat > 0 {
+                                HStack(spacing: 4) {
+                                    if chol > 0 {
+                                        Text("Chol \(String(format: "%.0f", chol))mg")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    if chol > 0 && satFat > 0 {
+                                        Text("·")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    if satFat > 0 {
+                                        Text("Sat \(String(format: "%.1f", satFat))g")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
                         }
                         .padding(.top, 8)
                     }
@@ -649,14 +751,43 @@ struct EditQuickAddItemView: View {
                         let finalCategory = isCreatingNewCategory ? customCategory : selectedCategory
                         let finalServingSize = "\(customServingSize) \(unitOptions.first { $0.0 == customServingUnit }?.1 ?? customServingUnit)"
                         
+                        let mult = calculateServingMultiplier()
+                        
+                        // Handle edited cholesterol and saturated fat
+                        let editedCholValue = Double(editedCholesterol)
+                        let editedSatFatValue = Double(editedSaturatedFat)
+                        
+                        // Calculate original values: if edited, convert from new serving size back to original serving size
+                        let originalServingSize = item.originalServingSize > 0 ? item.originalServingSize : 1.0
+                        let newServingSize = Double(customServingSize) ?? originalServingSize
+                        
+                        let finalOriginalCholesterol: Double?
+                        let finalOriginalSaturatedFat: Double?
+                        
+                        if let editedChol = editedCholValue, editedChol > 0 {
+                            // User edited it - convert from new serving size to original serving size
+                            finalOriginalCholesterol = editedChol * (originalServingSize / newServingSize)
+                        } else {
+                            // Keep existing original value
+                            finalOriginalCholesterol = item.originalCholesterol ?? item.cholesterol
+                        }
+                        
+                        if let editedSat = editedSatFatValue, editedSat > 0 {
+                            // User edited it - convert from new serving size to original serving size
+                            finalOriginalSaturatedFat = editedSat * (originalServingSize / newServingSize)
+                        } else {
+                            // Keep existing original value
+                            finalOriginalSaturatedFat = item.originalSaturatedFat ?? item.saturatedFat
+                        }
+                        
                         let updatedItem = QuickAddItem(
                             id: item.id,
                             name: editedName,
                             protein: adjustedNutritionValues.protein,
                             fat: adjustedNutritionValues.fat,
-                            totalCarbs: item.originalTotalCarbs * calculateServingMultiplier(),
-                            fiber: item.originalFiber * calculateServingMultiplier(),
-                            sugarAlcohols: item.originalSugarAlcohols * calculateServingMultiplier(),
+                            totalCarbs: item.originalTotalCarbs * mult,
+                            fiber: item.originalFiber * mult,
+                            sugarAlcohols: item.originalSugarAlcohols * mult,
                             netCarbs: adjustedNutritionValues.netCarbs,
                             calories: adjustedNutritionValues.calories,
                             servingSize: finalServingSize,
@@ -665,7 +796,9 @@ struct EditQuickAddItemView: View {
                             lastUsed: item.lastUsed,
                             createdAt: item.createdAt,
                             brandName: editedBrandName.isEmpty ? nil : editedBrandName,
-                            // Keep original data unchanged
+                            cholesterol: adjustedNutritionValues.cholesterol > 0 ? adjustedNutritionValues.cholesterol : nil,
+                            saturatedFat: adjustedNutritionValues.saturatedFat > 0 ? adjustedNutritionValues.saturatedFat : nil,
+                            // Update original data if edited
                             originalProtein: item.originalProtein,
                             originalFat: item.originalFat,
                             originalTotalCarbs: item.originalTotalCarbs,
@@ -674,7 +807,9 @@ struct EditQuickAddItemView: View {
                             originalNetCarbs: item.originalNetCarbs,
                             originalCalories: item.originalCalories,
                             originalServingSize: item.originalServingSize,
-                            originalServingSizeUnit: item.originalServingSizeUnit
+                            originalServingSizeUnit: item.originalServingSizeUnit,
+                            originalCholesterol: finalOriginalCholesterol,
+                            originalSaturatedFat: finalOriginalSaturatedFat
                         )
                         
                         onSave(updatedItem)
@@ -714,6 +849,14 @@ struct EditQuickAddItemView: View {
             } else {
                 customServingUnit = "servings"
             }
+            
+            // Initialize cholesterol and saturated fat with current values (for current serving size)
+            if let chol = item.cholesterol, chol > 0 {
+                editedCholesterol = String(format: "%.0f", chol)
+            }
+            if let satFat = item.saturatedFat, satFat > 0 {
+                editedSaturatedFat = String(format: "%.1f", satFat)
+            }
         }
     }
     
@@ -723,7 +866,7 @@ struct EditQuickAddItemView: View {
     }
 }
 
-// Custom TextField that automatically becomes first responder
+// Custom TextField that automatically becomes first responder (works in sheets)
 struct AutoFocusTextField: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
@@ -736,6 +879,7 @@ struct AutoFocusTextField: UIViewRepresentable {
         textField.font = .systemFont(ofSize: 28, weight: .regular)
         textField.autocorrectionType = .no
         textField.autocapitalizationType = .none
+        textField.borderStyle = .roundedRect
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textChanged), for: .editingChanged)
         return textField
     }
@@ -746,11 +890,21 @@ struct AutoFocusTextField: UIViewRepresentable {
             uiView.text = text
         }
         
-        // Handle focus - try immediately first
+        // Handle focus - become first responder so keyboard shows (critical in sheets)
         if isFocused && !uiView.isFirstResponder {
             uiView.becomeFirstResponder()
-            // Also try async as backup
-            DispatchQueue.main.async {
+            // Retry with delays; sheet content may not be in window yet
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                if !uiView.isFirstResponder {
+                    uiView.becomeFirstResponder()
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !uiView.isFirstResponder {
+                    uiView.becomeFirstResponder()
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 if !uiView.isFirstResponder {
                     uiView.becomeFirstResponder()
                 }

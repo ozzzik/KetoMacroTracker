@@ -18,6 +18,23 @@ struct OpenFoodFactsSearchResponse: Codable {
         case pageSize = "page_size"
         case products
     }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // API can return count/page/page_size as either Int or String
+        count = Self.decodeIntOrString(c, key: .count)
+        page = Self.decodeIntOrString(c, key: .page)
+        pageSize = Self.decodeIntOrString(c, key: .pageSize)
+        products = try c.decodeIfPresent([OpenFoodFactsProduct].self, forKey: .products)
+    }
+    
+    private static func decodeIntOrString(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
+        do {
+            return try c.decodeIfPresent(Int.self, forKey: key)
+        } catch {
+            return (try? c.decodeIfPresent(String.self, forKey: key)).flatMap { Int($0) }
+        }
+    }
 }
 
 // Alternative response structure for different API versions
@@ -26,6 +43,26 @@ struct OpenFoodFactsSearchResponseAlt: Codable {
     let count: Int?
     let page: Int?
     let products: [OpenFoodFactsProduct]?
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        status = Self.decodeIntOrString(c, key: .status)
+        count = Self.decodeIntOrString(c, key: .count)
+        page = Self.decodeIntOrString(c, key: .page)
+        products = try c.decodeIfPresent([OpenFoodFactsProduct].self, forKey: .products)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case status, count, page, products
+    }
+    
+    private static func decodeIntOrString(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
+        do {
+            return try c.decodeIfPresent(Int.self, forKey: key)
+        } catch {
+            return (try? c.decodeIfPresent(String.self, forKey: key)).flatMap { Int($0) }
+        }
+    }
 }
 
 struct OpenFoodFactsProduct: Codable, Identifiable {
@@ -97,6 +134,51 @@ struct OpenFoodFactsProduct: Codable, Identifiable {
         return nutriments?["energy-kcal_100g"]?.value ?? 
                nutriments?["energy_100g"]?.value ?? 
                nutriments?["calories_100g"]?.value ?? 0.0
+    }
+    
+    var cholesterol: Double {
+        // Check multiple possible field names for cholesterol
+        // OpenFoodFacts stores cholesterol in GRAMS per 100g (not mg)
+        // We need to convert from grams to milligrams by multiplying by 1000
+        // Example: 0.0221 g = 22.1 mg
+        if let value = nutriments?["cholesterol_100g"]?.value, value > 0 {
+            return value * 1000.0 // Convert grams to milligrams
+        }
+        if let value = nutriments?["cholesterol"]?.value, value > 0 {
+            // Check if this is already in mg (unlikely, but handle it)
+            // If value > 100, assume it's already in mg, otherwise assume grams
+            return value > 100 ? value : value * 1000.0
+        }
+        // Try with unit suffix variations
+        if let value = nutriments?["cholesterol-mg_100g"]?.value, value > 0 {
+            // This field name suggests it's already in mg
+            return value
+        }
+        if let value = nutriments?["cholesterol_mg_100g"]?.value, value > 0 {
+            // This field name suggests it's already in mg
+            return value
+        }
+        if let value = nutriments?["cholesterol_value"]?.value, value > 0 {
+            // Assume grams and convert to mg
+            return value * 1000.0
+        }
+        // Debug: log available nutriment keys for troubleshooting
+        if let nutriments = nutriments {
+            let cholesterolKeys = nutriments.keys.filter { $0.lowercased().contains("cholesterol") }
+            if !cholesterolKeys.isEmpty {
+                print("🔍 Found cholesterol keys: \(cholesterolKeys)")
+                for key in cholesterolKeys {
+                    print("   \(key): \(nutriments[key]?.value ?? 0)")
+                }
+            }
+        }
+        return 0.0
+    }
+    
+    var saturatedFat: Double {
+        return nutriments?["saturated-fat_100g"]?.value ?? 
+               nutriments?["saturated-fat"]?.value ?? 
+               nutriments?["saturated_fat_100g"]?.value ?? 0.0
     }
     
     var netCarbs: Double {
@@ -604,6 +686,32 @@ class OpenFoodFactsAPI: ObservableObject {
                 dataPoints: nil,
                 derivationCode: nil,
                 derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1253, // Cholesterol
+                nutrientName: "Cholesterol",
+                nutrientNumber: "601",
+                unitName: "MG",
+                value: product.cholesterol,
+                rank: 700,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1258, // Saturated Fat
+                nutrientName: "Fatty acids, total saturated",
+                nutrientNumber: "606",
+                unitName: "G",
+                value: product.saturatedFat,
+                rank: 750,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
             )
         ]
         
@@ -626,6 +734,7 @@ class OpenFoodFactsAPI: ObservableObject {
         print("🔍 OpenFoodFacts Debug - Protein: \(product.protein)g, Fat: \(product.fat)g, Carbs: \(product.totalCarbs)g")
         print("🔍 OpenFoodFacts Debug - Fiber: \(product.fiber)g, Sugars: \(product.sugars)g, Sugar Alcohols: \(product.sugarAlcohols)g")
         print("🔍 OpenFoodFacts Debug - Net Carbs: \(product.netCarbs)g, Calories: \(product.calories)kcal")
+        print("🔍 OpenFoodFacts Debug - Cholesterol: \(product.cholesterol)mg (converted from grams), Saturated Fat: \(product.saturatedFat)g")
         
         return USDAFood(
             id: UUID(),

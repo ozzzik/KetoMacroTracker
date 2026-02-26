@@ -14,7 +14,6 @@ struct DataExportView: View {
     @State private var exportCode = ""
     @State private var showingShareSheet = false
     @State private var showingCopyAlert = false
-    @State private var showingPaywall = false
     @State private var selectedExportType: ExportType = .dailySummary
     @State private var exportDays: Int = 30
     @State private var csvData: String = ""
@@ -100,10 +99,6 @@ struct DataExportView: View {
                 // Export Section
                 VStack(spacing: 16) {
                     Button(action: {
-                        if !isPremium {
-                            showingPaywall = true
-                            return
-                        }
                         generateExport()
                     }) {
                         HStack {

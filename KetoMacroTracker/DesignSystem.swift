@@ -23,6 +23,8 @@ struct AppColors {
     static let carbs = Color(red: 0.2, green: 0.5, blue: 0.9) // Blue for carbs
     static let fat = Color(red: 0.9, green: 0.7, blue: 0.2) // Yellow for fat
     static let calories = Color(red: 0.6, green: 0.3, blue: 0.8) // Purple for calories
+    static let cholesterol = Color(red: 0.85, green: 0.4, blue: 0.3) // Red-orange for cholesterol
+    static let saturatedFat = Color(red: 0.8, green: 0.5, blue: 0.2) // Dark orange for saturated fat
     
     // Neutral Colors
     static let background = Color(UIColor.systemBackground)

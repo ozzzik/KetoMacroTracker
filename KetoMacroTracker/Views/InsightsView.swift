@@ -15,11 +15,6 @@ struct InsightsView: View {
     
     @State private var selectedInsight: InsightType = .trends
     @State private var showingDetailView = false
-    @State private var showingPaywall = false
-    
-    private var isPremium: Bool {
-        subscriptionManager.isPremiumActive
-    }
     
     var body: some View {
         NavigationStack {
@@ -47,10 +42,6 @@ struct InsightsView: View {
             .onChange(of: foodLogManager.todaysFoods.count) {
                 // Update trends when food log changes
                 trendManager.updateTrends()
-            }
-            .adaptiveSheet(isPresented: $showingPaywall) {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
             }
         }
     }
@@ -151,27 +142,46 @@ struct InsightsView: View {
     
     // MARK: - Quick Insights Row
     private var quickInsightsRow: some View {
-        HStack(spacing: 20) {
-            quickInsightItem(
-                title: "Streak",
-                value: "\(trendManager.currentStreak)",
-                subtitle: "days",
-                color: .green
-            )
+        VStack(spacing: 16) {
+            HStack(spacing: 20) {
+                quickInsightItem(
+                    title: "Streak",
+                    value: "\(trendManager.currentStreak)",
+                    subtitle: "days",
+                    color: .green
+                )
+                
+                quickInsightItem(
+                    title: "Weekly Avg",
+                    value: String(format: "%.1f", trendManager.weeklyAverage),
+                    subtitle: "g carbs",
+                    color: trendManager.weeklyAverage < 20 ? .green : .orange
+                )
+                
+                quickInsightItem(
+                    title: "Consistency",
+                    value: "\(Int(calculateConsistency() * 100))",
+                    subtitle: "%",
+                    color: calculateConsistency() > 0.8 ? .green : .orange
+                )
+            }
             
-            quickInsightItem(
-                title: "Weekly Avg",
-                value: String(format: "%.1f", trendManager.weeklyAverage),
-                subtitle: "g carbs",
-                color: trendManager.weeklyAverage < 20 ? .green : .orange
-            )
-            
-            quickInsightItem(
-                title: "Consistency",
-                value: "\(Int(calculateConsistency() * 100))",
-                subtitle: "%",
-                color: calculateConsistency() > 0.8 ? .green : .orange
-            )
+            // Cholesterol and Saturated Fat Monitoring
+            HStack(spacing: 20) {
+                quickInsightItem(
+                    title: "Cholesterol",
+                    value: String(format: "%.0f", foodLogManager.totalCholesterol),
+                    subtitle: "mg",
+                    color: foodLogManager.totalCholesterol < 300 ? .green : (foodLogManager.totalCholesterol < 500 ? .orange : .red)
+                )
+                
+                quickInsightItem(
+                    title: "Saturated Fat",
+                    value: String(format: "%.1f", foodLogManager.totalSaturatedFat),
+                    subtitle: "g",
+                    color: foodLogManager.totalSaturatedFat < 20 ? .green : (foodLogManager.totalSaturatedFat < 30 ? .orange : .red)
+                )
+            }
         }
     }
     
@@ -200,6 +210,7 @@ struct InsightsView: View {
             Text("Balance").tag(InsightType.balance)
             Text("Ketosis").tag(InsightType.ketosis)
             Text("Analytics").tag(InsightType.analytics)
+            Text("Heart Health").tag(InsightType.cholesterol)
         }
         .pickerStyle(SegmentedPickerStyle())
     }
@@ -216,44 +227,36 @@ struct InsightsView: View {
             ketosisContent
         case .analytics:
             VStack(spacing: 20) {
-                if isPremium {
-                    AnalyticsView()
-                        .padding(.horizontal, -16) // Remove double padding
-                    
-                    // Predictive Insights
-                    NavigationLink(destination: PredictiveInsightsView()) {
-                        AppCard {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Goal Predictions")
-                                        .font(AppTypography.title3)
-                                        .foregroundColor(AppColors.text)
-                                    
-                                    Text("See when you'll reach your goals")
-                                        .font(AppTypography.caption)
-                                        .foregroundColor(AppColors.secondaryText)
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
+                AnalyticsView()
+                    .padding(.horizontal, -16)
+                NavigationLink(destination: PredictiveInsightsView()) {
+                    AppCard {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Goal Predictions")
+                                    .font(AppTypography.title3)
+                                    .foregroundColor(AppColors.text)
+                                Text("See when you'll reach your goals")
+                                    .font(AppTypography.caption)
                                     .foregroundColor(AppColors.secondaryText)
                             }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(AppColors.secondaryText)
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
-                } else {
-                    paywallCard
                 }
+                .buttonStyle(PlainButtonStyle())
             }
+        case .cholesterol:
+            CholesterolSaturatedFatInsightsView()
+                .environmentObject(foodLogManager)
         }
     }
     
     // MARK: - Trends Content
     private var trendsContent: some View {
-        // Limit to 7 days for free users
-        let maxDays = isPremium ? nil : 7
-        let weeklySummaries = trendManager.getWeeklySummaries(limit: isPremium ? 4 : 1)
+        let weeklySummaries = trendManager.getWeeklySummaries(limit: 4)
         return VStack(spacing: 16) {
             if trendManager.trends.isEmpty {
                 emptyDataCard
@@ -264,34 +267,18 @@ struct InsightsView: View {
                             Text("Net Carb Trends")
                                 .font(AppTypography.title3)
                                 .foregroundColor(AppColors.text)
-                            
                             Spacer()
-                            
-                            if !isPremium {
-                                Text("Last 7 days")
-                                    .font(AppTypography.caption)
-                                    .foregroundColor(AppColors.secondaryText)
-                            }
                         }
-                        
-                        NetCarbTrendChart(isPremium: isPremium)
+                        NetCarbTrendChart(isPremium: true)
                     }
                 }
-                
-                // Additional trend insights (limited for free users)
                 if !weeklySummaries.isEmpty {
                     WeeklyTrendSummaryView(
                         summaries: weeklySummaries,
                         weekDelta: trendManager.weekOverWeekDelta()
                     )
                 }
-                
                 trendInsightsCard
-                
-                // Show upgrade prompt for free users
-                if !isPremium {
-                    upgradePromptCard
-                }
             }
         }
     }
@@ -768,64 +755,11 @@ struct InsightsView: View {
         return insights
     }
     
-    // MARK: - Paywall Card
-    private var paywallCard: some View {
-        AppCard {
-            VStack(spacing: 20) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(AppColors.primary)
-                
-                Text("Advanced Analytics")
-                    .font(AppTypography.title2)
-                    .foregroundColor(AppColors.text)
-                
-                Text("Unlock advanced analytics, extended trends, and predictive insights with Premium.")
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.secondaryText)
-                    .multilineTextAlignment(.center)
-                
-                Button("Upgrade to Premium") {
-                    showingPaywall = true
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.vertical, 20)
-        }
-    }
-    
-    // MARK: - Upgrade Prompt Card
-    private var upgradePromptCard: some View {
-        AppCard {
-            VStack(spacing: 12) {
-                HStack {
-                    Image(systemName: "crown.fill")
-                        .foregroundColor(.yellow)
-                    
-                    Text("Unlock Extended Insights")
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColors.text)
-                    
-                    Spacer()
-                }
-                
-                Text("Upgrade to Premium to see trends beyond 7 days, advanced analytics, and goal predictions.")
-                    .font(AppTypography.caption)
-                    .foregroundColor(AppColors.secondaryText)
-                
-                Button("Upgrade") {
-                    showingPaywall = true
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-        }
-    }
 }
 
 // MARK: - Supporting Types
 enum InsightType {
-    case trends, balance, ketosis, analytics
+    case trends, balance, ketosis, analytics, cholesterol
 }
 
 struct TrendInsight: Hashable {

@@ -14,6 +14,8 @@ struct ManualFoodEntryView: View {
     @State private var fiber = ""
     @State private var sugarAlcohols = ""
     @State private var calories = ""
+    @State private var cholesterol = ""
+    @State private var saturatedFat = ""
     @State private var nutritionDataFor = ""
     @State private var nutritionDataUnit = "g"
     @State private var addToQuickAdd = false
@@ -132,6 +134,24 @@ struct ManualFoodEntryView: View {
                         Text("Calories")
                         Spacer()
                         TextField("0", text: $calories)
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Text("Cholesterol (mg)")
+                        Spacer()
+                        TextField("0", text: $cholesterol)
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Text("Saturated Fat (g)")
+                        Spacer()
+                        TextField("0", text: $saturatedFat)
                             .keyboardType(.decimalPad)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .frame(width: 80)
@@ -278,6 +298,8 @@ struct ManualFoodEntryView: View {
         fiber = String(format: "%.1f", sourceFood.fiber)
         sugarAlcohols = String(format: "%.1f", sourceFood.sugarAlcohols)
         calories = String(format: "%.0f", sourceFood.calories)
+        if sourceFood.cholesterol > 0 { cholesterol = String(format: "%.0f", sourceFood.cholesterol) }
+        if sourceFood.saturatedFat > 0 { saturatedFat = String(format: "%.1f", sourceFood.saturatedFat) }
         
         // Enable Quick Add by default when pre-populated
         addToQuickAdd = true
@@ -295,9 +317,9 @@ struct ManualFoodEntryView: View {
         print("🔄 Food name: \(foodName)")
         
         // Get the three measurements
-        let eating = Double(amountEating) ?? 50.0
+        let eating = Double(amountEating) ?? 0.0
         let eatingUnit = amountEatingUnit
-        let labelSize = Double(nutritionDataFor) ?? 56.0
+        let labelSize = Double(nutritionDataFor) ?? 0.0
         let labelUnit = nutritionDataUnit
         let quickAddSize = Double(quickAddServingSize) ?? 100.0
         let quickAddUnit = quickAddServingUnit
@@ -306,27 +328,76 @@ struct ManualFoodEntryView: View {
         print("🔄 Label data for: \(labelSize)\(labelUnit)")
         print("🔄 Quick Add serving: \(quickAddSize)\(quickAddUnit)")
         
-        // Step 1: Convert label macros to Quick Add serving size
-        // Calculate ratio: quickAddSize / labelSize
-        let conversionRatio: Double
-        if labelUnit == quickAddUnit && labelSize > 0 {
-            conversionRatio = quickAddSize / labelSize
-            print("🔄 Conversion ratio: \(quickAddSize) / \(labelSize) = \(conversionRatio)")
-        } else {
-            conversionRatio = 1.0
-            print("⚠️ Units don't match or invalid label size - using 1:1 ratio")
+        // Validate that we have required data
+        guard eating > 0 else {
+            print("❌ Error: Amount eating must be greater than 0")
+            return
         }
         
+        // Step 1: Convert label macros to Quick Add serving size
+        // The macros entered are FOR the "nutrition data for" serving size
+        // We need to convert them to the Quick Add serving size
+        
+        let conversionRatio: Double
+        let effectiveLabelSize: Double
+        let effectiveLabelUnit: String
+        
+        // If nutritionDataFor is empty, assume macros are for the eating amount
+        if nutritionDataFor.isEmpty || labelSize <= 0 {
+            // Macros are for the eating amount - use eating as the base
+            effectiveLabelSize = eating
+            effectiveLabelUnit = eatingUnit
+            print("🔄 Nutrition data for is empty - using eating amount as base: \(eating)\(eatingUnit)")
+        } else {
+            effectiveLabelSize = labelSize
+            effectiveLabelUnit = labelUnit
+        }
+        
+        // Calculate conversion ratio to convert from label size to Quick Add size
+        if effectiveLabelUnit == quickAddUnit && effectiveLabelSize > 0 && quickAddSize > 0 {
+            conversionRatio = quickAddSize / effectiveLabelSize
+            print("🔄 Conversion ratio: \(quickAddSize)\(quickAddUnit) / \(effectiveLabelSize)\(effectiveLabelUnit) = \(conversionRatio)")
+        } else {
+            // Units don't match - can't convert accurately, use 1:1 and warn
+            conversionRatio = 1.0
+            print("⚠️ Units don't match (\(effectiveLabelUnit) vs \(quickAddUnit)) or invalid sizes - using 1:1 ratio")
+            print("⚠️ This may result in incorrect macro values!")
+        }
+        
+        // Get the raw macro values from text fields
+        let rawProtein = Double(protein) ?? 0
+        let rawFat = Double(fat) ?? 0
+        let rawCarbs = Double(totalCarbs) ?? 0
+        let rawFiber = Double(fiber) ?? 0
+        let rawSugarAlcohols = Double(sugarAlcohols) ?? 0
+        let rawCalories = Double(calories) ?? 0
+        let rawCholesterol = Double(cholesterol) ?? 0  // mg
+        let rawSaturatedFat = Double(saturatedFat) ?? 0  // g
+        
+        print("🔄 Raw macros entered (for \(effectiveLabelSize)\(effectiveLabelUnit)):")
+        print("   Protein: \(rawProtein)g, Carbs: \(rawCarbs)g, Fat: \(rawFat)g, Calories: \(rawCalories)")
+        
         // Convert macros from label serving to Quick Add serving
-        let convertedProtein = (Double(protein) ?? 0) * conversionRatio
-        let convertedFat = (Double(fat) ?? 0) * conversionRatio
-        let convertedCarbs = (Double(totalCarbs) ?? 0) * conversionRatio
-        let convertedFiber = (Double(fiber) ?? 0) * conversionRatio
-        let convertedSugarAlcohols = (Double(sugarAlcohols) ?? 0) * conversionRatio
-        let convertedCalories = (Double(calories) ?? 0) * conversionRatio
+        let convertedProtein = rawProtein * conversionRatio
+        let convertedFat = rawFat * conversionRatio
+        let convertedCarbs = rawCarbs * conversionRatio
+        let convertedFiber = rawFiber * conversionRatio
+        let convertedSugarAlcohols = rawSugarAlcohols * conversionRatio
+        let convertedCalories = rawCalories * conversionRatio
+        let convertedCholesterol = rawCholesterol * conversionRatio
+        let convertedSaturatedFat = rawSaturatedFat * conversionRatio
         
         print("🔄 Converted macros (per \(quickAddSize)\(quickAddUnit)):")
-        print("   Protein: \(convertedProtein)g, Carbs: \(convertedCarbs)g, Fat: \(convertedFat)g")
+        print("   Protein: \(convertedProtein)g, Carbs: \(convertedCarbs)g, Fat: \(convertedFat)g, Calories: \(convertedCalories)")
+        
+        // Validate that we have at least some nutrition data
+        guard convertedProtein > 0 || convertedFat > 0 || convertedCarbs > 0 || convertedCalories > 0 else {
+            print("❌ Error: All macro values are zero after conversion!")
+            print("   Raw values: Protein=\(rawProtein), Fat=\(rawFat), Carbs=\(rawCarbs), Calories=\(rawCalories)")
+            print("   Conversion ratio: \(conversionRatio)")
+            // Show an alert or error to the user
+            return
+        }
         
         // Create food with Quick Add serving size and converted macros
         let food = USDAFood(
@@ -340,7 +411,9 @@ struct ManualFoodEntryView: View {
                 carbs: convertedCarbs,
                 fiber: convertedFiber,
                 sugarAlcohols: convertedSugarAlcohols,
-                calories: convertedCalories
+                calories: convertedCalories,
+                cholesterol: convertedCholesterol,
+                saturatedFat: convertedSaturatedFat
             ),
             gtinUpc: nil,
             publishedDate: nil,
@@ -353,12 +426,50 @@ struct ManualFoodEntryView: View {
         )
         
         print("🔄 Created USDAFood: \(food.description)")
-        print("🔄 Food protein: \(food.protein), carbs: \(food.totalCarbs), fat: \(food.fat)")
+        print("🔄 Food protein: \(food.protein), carbs: \(food.totalCarbs), fat: \(food.fat), calories: \(food.calories)")
+        
+        // Final validation - ensure the food has valid nutrition data
+        guard food.hasValidNutritionData else {
+            print("❌ Error: Created food has no valid nutrition data!")
+            print("   Food protein: \(food.protein), carbs: \(food.totalCarbs), fat: \(food.fat), calories: \(food.calories)")
+            return
+        }
         
         // Step 2: Add to Quick Add if toggle is enabled
         if addToQuickAdd {
             print("🔄 Adding to Quick Add with category: \(selectedCategory)")
-            quickAddManager.addToQuickAdd(food, category: selectedCategory)
+            
+            // Create original food object with raw values (before conversion to QuickAdd serving size)
+            // This preserves the original values for proper recalculation
+            let originalFood = USDAFood(
+                id: UUID(),
+                fdcId: Int.random(in: 1000000...9999999),
+                description: foodName,
+                dataType: "Manual Entry",
+                foodNutrients: createNutrients(
+                    protein: rawProtein,
+                    fat: rawFat,
+                    carbs: rawCarbs,
+                    fiber: rawFiber,
+                    sugarAlcohols: rawSugarAlcohols,
+                    calories: rawCalories,
+                    cholesterol: rawCholesterol,
+                    saturatedFat: rawSaturatedFat
+                ),
+                gtinUpc: nil,
+                publishedDate: nil,
+                brandOwner: nil,
+                brandName: nil,
+                ingredients: nil,
+                servingSize: effectiveLabelSize,
+                servingSizeUnit: effectiveLabelUnit,
+                foodCategory: "Manual Entry"
+            )
+            
+            print("🔄 Original food (before conversion): servingSize=\(effectiveLabelSize)\(effectiveLabelUnit), protein=\(rawProtein)g")
+            print("🔄 Converted food (for QuickAdd): servingSize=\(quickAddSize)\(quickAddUnit), protein=\(convertedProtein)g")
+            
+            quickAddManager.addToQuickAdd(food, category: selectedCategory, originalFood: originalFood)
         }
         
         // Step 3: Calculate how many Quick Add servings to log for what you ate
@@ -383,7 +494,9 @@ struct ManualFoodEntryView: View {
                                  carbs carbsValue: Double? = nil, 
                                  fiber fiberValue: Double? = nil, 
                                  sugarAlcohols sugarAlcoholsValue: Double? = nil, 
-                                 calories caloriesValue: Double? = nil) -> [USDAFoodNutrient] {
+                                 calories caloriesValue: Double? = nil,
+                                 cholesterol cholesterolValue: Double? = nil,
+                                 saturatedFat saturatedFatValue: Double? = nil) -> [USDAFoodNutrient] {
         var nutrients: [USDAFoodNutrient] = []
         
         // Use provided values or parse from text fields
@@ -393,6 +506,8 @@ struct ManualFoodEntryView: View {
         let fiberVal = fiberValue ?? Double(fiber) ?? 0
         let sugarAlcoholsVal = sugarAlcoholsValue ?? Double(sugarAlcohols) ?? 0
         let caloriesVal = caloriesValue ?? Double(calories) ?? 0
+        let cholesterolVal = cholesterolValue ?? Double(cholesterol) ?? 0
+        let saturatedFatVal = saturatedFatValue ?? Double(saturatedFat) ?? 0
         
         // Protein (ID: 1003)
         if proteinVal > 0 {
@@ -488,6 +603,40 @@ struct ManualFoodEntryView: View {
                 unitName: "kcal",
                 value: caloriesVal,
                 rank: 50,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: 0,
+                derivationCode: nil,
+                derivationDescription: nil
+            ))
+        }
+        
+        // Cholesterol (ID: 1253), unit mg
+        if cholesterolVal > 0 {
+            nutrients.append(USDAFoodNutrient(
+                nutrientId: 1253,
+                nutrientName: "Cholesterol",
+                nutrientNumber: "601",
+                unitName: "mg",
+                value: cholesterolVal,
+                rank: 600,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: 0,
+                derivationCode: nil,
+                derivationDescription: nil
+            ))
+        }
+        
+        // Saturated Fat (ID: 1258)
+        if saturatedFatVal > 0 {
+            nutrients.append(USDAFoodNutrient(
+                nutrientId: 1258,
+                nutrientName: "Fatty acids, total saturated",
+                nutrientNumber: "606",
+                unitName: "g",
+                value: saturatedFatVal,
+                rank: 700,
                 indentLevel: 1,
                 foodNutrientId: nil,
                 dataPoints: 0,

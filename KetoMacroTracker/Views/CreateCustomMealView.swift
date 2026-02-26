@@ -14,7 +14,6 @@ struct CreateCustomMealView: View {
     @StateObject private var quickAddManager = QuickAddManager()
     @Environment(\.dismiss) var dismiss
     
-    @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var limitAlertMessage = ""
     
@@ -81,16 +80,9 @@ struct CreateCustomMealView: View {
             )
         }
         .alert("Custom Meal Limit Reached", isPresented: $showingLimitAlert) {
-            Button("Upgrade to Premium") {
-                showingPaywall = true
-            }
             Button("OK", role: .cancel) { }
         } message: {
             Text(limitAlertMessage)
-        }
-        .adaptiveSheet(isPresented: $showingPaywall) {
-            PaywallView()
-                .environmentObject(subscriptionManager)
         }
         .alert("Delete Food", isPresented: $showingDeleteConfirmation) {
             Button("Delete", role: .destructive) {

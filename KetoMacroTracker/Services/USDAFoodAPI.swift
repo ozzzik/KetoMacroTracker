@@ -51,6 +51,18 @@ struct USDAFood: Identifiable, Codable {
         max(0, totalCarbs - fiber - sugarAlcohols)
     }
     
+    // Cholesterol (ID: 1253)
+    var cholesterol: Double {
+        let value = foodNutrients?.first { $0.nutrientId == 1253 }?.value ?? 0.0
+        return max(0, value) // Ensure non-negative
+    }
+    
+    // Saturated Fat (ID: 1258)
+    var saturatedFat: Double {
+        let value = foodNutrients?.first { $0.nutrientId == 1258 }?.value ?? 0.0
+        return max(0, value) // Ensure non-negative
+    }
+    
     // Data quality check
     var hasValidNutritionData: Bool {
         return protein > 0 || fat > 0 || totalCarbs > 0 || calories > 0

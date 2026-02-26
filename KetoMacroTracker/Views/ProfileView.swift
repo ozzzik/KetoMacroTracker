@@ -12,9 +12,8 @@ struct ProfileView: View {
     @EnvironmentObject var tutorialManager: TutorialManager
     @EnvironmentObject var guidedTourManager: GuidedTourManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @EnvironmentObject var adManager: AdManager
     @State private var showingEditProfile = false
-    @State private var showingSubscription = false
-    @State private var showingPaywall = false
     @State private var showingDatabaseSettings = false
     @State private var showingAchievements = false
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
@@ -23,6 +22,7 @@ struct ProfileView: View {
     @State private var showingHealthIntegration = false
     @State private var showingTutorial = false
     @State private var showingAPIUsageStats = false
+    @State private var showingHeartHealthGoals = false
     // @State private var showingDataImport = false
     
     // Current profile data from ProfileManager
@@ -38,82 +38,35 @@ struct ProfileView: View {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(spacing: 24) {
-                    // Premium Subscription Section
-                    AppCard {
-                        VStack(spacing: 16) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Image(systemName: subscriptionManager.isPremiumActive ? "crown.fill" : "crown")
-                                            .foregroundColor(AppColors.accent)
-                                            .font(.title2)
-                                        
-                                        Text(subscriptionManager.isPremiumActive ? "Premium Active" : "Upgrade to Premium")
-                                            .font(AppTypography.title3)
-                                            .foregroundColor(AppColors.text)
-                                    }
-                                    .onAppear {
-                                        print("🔄 ProfileView: Premium section appeared")
-                                        print("  - isPremiumActive: \(subscriptionManager.isPremiumActive)")
-                                        print("  - subscriptionStatus: \(subscriptionManager.subscriptionStatus)")
-                                        print("  - hasCheckedSubscriptionStatus: \(subscriptionManager.hasCheckedSubscriptionStatus)")
-                                    }
-                                    
-                                    if subscriptionManager.isPremiumActive {
-                                        if let expirationDate = subscriptionManager.expirationDate {
-                                            Text("Renews \(expirationDate, style: .date)")
-                                                .font(AppTypography.caption)
-                                                .foregroundColor(AppColors.secondaryText)
-                                        } else {
-                                            Text("Active Subscription")
-                                                .font(AppTypography.caption)
-                                                .foregroundColor(AppColors.secondaryText)
-                                        }
-                                    } else {
-                                        Text("Unlock all premium features")
-                                            .font(AppTypography.caption)
-                                            .foregroundColor(AppColors.secondaryText)
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                if !subscriptionManager.isPremiumActive {
-                                    Button(action: {
-                                        print("🔄 ProfileView: Upgrade button tapped")
-                                        print("  - showingPaywall will be set to true")
-                                        showingPaywall = true
-                                        print("  - showingPaywall is now: \(showingPaywall)")
-                                    }) {
-                                        Text("Upgrade")
-                                            .font(AppTypography.headline)
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                LinearGradient(
-                                                    colors: [AppColors.primary, AppColors.accent],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                            )
-                                            .cornerRadius(8)
-                                    }
-                                }
-                            }
-                            
-                            if !subscriptionManager.isPremiumActive {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(AppColors.success)
-                                        .font(.caption)
-                                    Text("Unlimited food logging")
-                                        .font(AppTypography.caption)
-                                        .foregroundColor(AppColors.secondaryText)
-                                    
+                    // Ads: Watch ad for ad-free rest of day
+                    if !adManager.isAdFreeForRestOfDay {
+                        AppCard {
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "play.rectangle.fill")
+                                        .foregroundColor(AppColors.accent)
+                                        .font(.title2)
+                                    Text("Ad-free experience")
+                                        .font(AppTypography.title3)
+                                        .foregroundColor(AppColors.text)
                                     Spacer()
                                 }
-                                .padding(.top, 8)
+                                Button(action: {
+                                    if adManager.isAdReady {
+                                        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+                                        adManager.showRewardedInterstitial(from: scene)
+                                    } else {
+                                        Task { await adManager.loadRewardedInterstitial() }
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: "play.circle.fill")
+                                        Text(adManager.isAdReady ? "Watch ad for ad-free rest of day" : adManager.isLoading ? "Loading ad…" : "Tap to load ad")
+                                            .fontWeight(.medium)
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundColor(adManager.isAdReady ? AppColors.primary : AppColors.secondaryText)
+                                }
                             }
                         }
                     }
@@ -198,6 +151,41 @@ struct ProfileView: View {
                                         color: AppColors.calories
                                     )
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Heart Health Goals
+                    AppCard {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("Heart Health Goals")
+                                    .font(AppTypography.title3)
+                                    .foregroundColor(AppColors.text)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    showingHeartHealthGoals = true
+                                }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(AppColors.primary)
+                                        .font(.caption)
+                                }
+                            }
+                            
+                            VStack(spacing: 12) {
+                                MacroGoalRow(
+                                    title: "Cholesterol",
+                                    value: "\(Int(currentProfile.cholesterolGoal ?? 300.0))mg",
+                                    color: AppColors.cholesterol
+                                )
+                                
+                                MacroGoalRow(
+                                    title: "Saturated Fat",
+                                    value: "\(String(format: "%.1f", currentProfile.saturatedFatGoal ?? 20.0))g",
+                                    color: AppColors.saturatedFat
+                                )
                             }
                         }
                     }
@@ -362,38 +350,17 @@ struct ProfileView: View {
                                 .cornerRadius(6)
                             }
                             
-                            if !subscriptionManager.isPremiumActive {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "lock.fill")
-                                        .foregroundColor(AppColors.accent)
-                                        .font(.caption)
-                                    
-                                    Text("Premium Feature")
-                                        .font(AppTypography.caption)
-                                        .foregroundColor(AppColors.secondaryText)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(AppColors.accent.opacity(0.1))
-                                .cornerRadius(8)
-                            }
-                            
                             Button(action: {
-                                if !subscriptionManager.isPremiumActive {
-                                    showingPaywall = true
-                                } else {
-                                    showingHealthIntegration = true
-                                }
+                                showingHealthIntegration = true
                             }) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "heart.fill")
-                                        .foregroundColor(subscriptionManager.isPremiumActive ? .red : .gray)
+                                        .foregroundColor(.red)
                                         .font(.title3)
                                     
                                     Text("Manage HealthKit Integration")
                                         .font(AppTypography.body)
-                                        .foregroundColor(subscriptionManager.isPremiumActive ? AppColors.text : .gray)
+                                        .foregroundColor(AppColors.text)
                                     
                                     Spacer()
                                     
@@ -403,10 +370,9 @@ struct ProfileView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(subscriptionManager.isPremiumActive ? Color.red.opacity(0.1) : Color.gray.opacity(0.1))
+                                .background(Color.red.opacity(0.1))
                                 .cornerRadius(8)
                             }
-                            .disabled(!subscriptionManager.isPremiumActive)
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("This app uses HealthKit to:")
@@ -754,6 +720,11 @@ struct ProfileView: View {
                     showingEditProfile = false
                 }
             }
+            .adaptiveSheet(isPresented: $showingHeartHealthGoals) {
+                HeartHealthGoalsView(profileManager: profileManager) {
+                    showingHeartHealthGoals = false
+                }
+            }
             .adaptiveSheet(isPresented: $showingDatabaseSettings) {
                 DatabaseSettingsView()
             }
@@ -774,17 +745,6 @@ struct ProfileView: View {
             }
             .adaptiveSheet(isPresented: $showingHealthIntegration) {
                 HealthIntegrationView()
-                    .environmentObject(subscriptionManager)
-            }
-            .adaptiveSheet(isPresented: $showingPaywall) {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
-                    .onAppear {
-                        print("🔄 ProfileView: PaywallView sheet appeared")
-                    }
-            }
-            .adaptiveSheet(isPresented: $showingSubscription) {
-                SubscriptionView()
                     .environmentObject(subscriptionManager)
             }
             // .sheet(isPresented: $showingDataImport) {
@@ -856,4 +816,8 @@ struct MacroGoalRow: View {
 
 #Preview {
     ProfileView()
+        .environmentObject(TutorialManager())
+        .environmentObject(GuidedTourManager())
+        .environmentObject(SubscriptionManager.shared)
+        .environmentObject(AdManager.shared)
 }

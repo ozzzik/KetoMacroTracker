@@ -13,62 +13,20 @@ struct PredictiveInsightsView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @State private var selectedGoal: GoalType = .weightLoss
-    @State private var showingPaywall = false
-    
-    private var isPremium: Bool {
-        subscriptionManager.isPremiumActive
-    }
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    if isPremium {
-                        // Goal selector
-                        goalSelectorSection
-                        
-                        // Prediction card
-                        if let prediction = predictiveManager.predictGoalTimeline(goalType: selectedGoal) {
-                            predictionCard(prediction)
-                        }
-                    } else {
-                        paywallCard
+                    goalSelectorSection
+                    if let prediction = predictiveManager.predictGoalTimeline(goalType: selectedGoal) {
+                        predictionCard(prediction)
                     }
                 }
                 .padding()
             }
             .navigationTitle("Goal Predictions")
             .navigationBarTitleDisplayMode(.large)
-            .adaptiveSheet(isPresented: $showingPaywall) {
-                PaywallView()
-                    .environmentObject(subscriptionManager)
-            }
-        }
-    }
-    
-    // MARK: - Paywall Card
-    private var paywallCard: some View {
-        AppCard {
-            VStack(spacing: 20) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 48))
-                    .foregroundColor(AppColors.primary)
-                
-                Text("Predictive Insights")
-                    .font(AppTypography.title2)
-                    .foregroundColor(AppColors.text)
-                
-                Text("Unlock goal predictions and timeline forecasts with Premium. See when you'll reach your goals based on your current progress.")
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.secondaryText)
-                    .multilineTextAlignment(.center)
-                
-                Button("Upgrade to Premium") {
-                    showingPaywall = true
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.vertical, 20)
         }
     }
     

@@ -237,7 +237,8 @@ struct QuickAddCategoryView: View {
                     
                     print("🔧 QuickAddCategoryView: About to call addToQuickAdd")
                     print("🔧 QuickAddManager instance: \(Unmanaged.passUnretained(quickAddManager).toOpaque())")
-                    quickAddManager.addToQuickAdd(customFood, category: finalCategory)
+                    // Pass the original food as originalFood to preserve original values
+                    quickAddManager.addToQuickAdd(customFood, category: finalCategory, originalFood: food)
                     print("🔧 QuickAddCategoryView: addToQuickAdd completed")
                     dismiss()
                 }
@@ -266,23 +267,12 @@ struct QuickAddCategoryView: View {
     private func populateFromFood() {
         print("🔄 QuickAddCategoryView: Populating from food: \(food.description)")
         
-        // Set serving size based on the food's actual serving size
-        if let servingSize = food.servingSize, let servingUnit = food.servingSizeUnit {
-            // Check if this looks like a 100g reference (common for USDA database)
-            if servingSize == 100.0 && servingUnit == "g" {
-                // This is likely a 100g reference serving from USDA
-                customServingSize = "100"
-                customServingUnit = "g"
-                print("🔄 Detected USDA 100g reference - set serving size to 100g")
-            } else {
-                // Use the actual serving size from the food
-                customServingSize = String(format: "%.0f", servingSize)
-                customServingUnit = servingUnit
-                print("🔄 Set serving size to: \(servingSize)\(servingUnit)")
-            }
-        }
-        
-        print("🔄 Final serving size: \(customServingSize) \(customServingUnit)")
+        // Always default to 100g to match the search screen, which shows "Nutrition per 100g"
+        // and "× 100g". USDA and Open Food Facts report nutrients per 100g; the API may also
+        // return a different "serving" (e.g. 151g) which would confuse users who saw 100g on search.
+        customServingSize = "100"
+        customServingUnit = "g"
+        print("🔄 Default serving size to 100g to match search screen")
     }
     
     // Helper function to hide keyboard

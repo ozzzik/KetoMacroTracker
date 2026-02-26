@@ -52,6 +52,14 @@ struct LoggedFood: Identifiable, Codable {
         let result = max(0, carbs - fiber - sugarAlcohols) * serving
         return result.isFinite ? result : 0.0
     }
+    var totalCholesterol: Double {
+        let result = (food.cholesterol.isFinite ? food.cholesterol : 0.0) * (servings.isFinite ? servings : 0.0)
+        return result.isFinite ? result : 0.0
+    }
+    var totalSaturatedFat: Double {
+        let result = (food.saturatedFat.isFinite ? food.saturatedFat : 0.0) * (servings.isFinite ? servings : 0.0)
+        return result.isFinite ? result : 0.0
+    }
 }
 
 // MARK: - Food Log Manager
@@ -78,7 +86,7 @@ class FoodLogManager: ObservableObject {
     }
     
     // Premium limits
-    static let freeDailyFoodLimit = 7 // 5-10 range, using 7 as middle
+    static let freeDailyFoodLimit = 14 // Free: 14 foods per day (doubled)
     
     /// Get current daily food count
     var todayFoodCount: Int {
@@ -160,6 +168,7 @@ class FoodLogManager: ObservableObject {
         }
         
         saveTodaysFoods()
+        NotificationCenter.default.post(name: NSNotification.Name("FoodLogged"), object: nil)
         print("🍽️ Total today - Protein: \(totalProtein)g, Carbs: \(totalCarbs)g, Fat: \(totalFat)g")
         print("✅ FoodLogManager.addFood completed successfully")
         
@@ -253,6 +262,22 @@ class FoodLogManager: ObservableObject {
     var netCarbs: Double {
         let result = todaysFoods.reduce(0) { 
             let sum = $0 + $1.netCarbs
+            return sum.isFinite ? sum : $0
+        }
+        return result.isFinite ? result : 0.0
+    }
+    
+    var totalCholesterol: Double {
+        let result = todaysFoods.reduce(0) { 
+            let sum = $0 + $1.totalCholesterol
+            return sum.isFinite ? sum : $0
+        }
+        return result.isFinite ? result : 0.0
+    }
+    
+    var totalSaturatedFat: Double {
+        let result = todaysFoods.reduce(0) { 
+            let sum = $0 + $1.totalSaturatedFat
             return sum.isFinite ? sum : $0
         }
         return result.isFinite ? result : 0.0

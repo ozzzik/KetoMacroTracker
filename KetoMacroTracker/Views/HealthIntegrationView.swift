@@ -17,7 +17,6 @@ struct HealthIntegrationView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingAuthorizationAlert = false
-    @State private var showingPaywall = false
     @State private var autoSyncEnabled = UserDefaults.standard.bool(forKey: "HealthKitAutoSync")
     
     var body: some View {
@@ -134,11 +133,7 @@ struct HealthIntegrationView: View {
                     
                     if !healthKitManager.isAuthorized {
                         Button("Authorize Health Access") {
-                            if !subscriptionManager.isPremiumActive {
-                                showingPaywall = true
-                            } else {
                                 healthKitManager.requestAuthorization()
-                            }
                         }
                         .foregroundColor(AppColors.primary)
                     }
@@ -224,10 +219,6 @@ struct HealthIntegrationView: View {
                     healthKitManager.loadLatestWeight()
                 }
             }
-        }
-        .sheet(isPresented: $showingPaywall) {
-            PaywallView()
-                .environmentObject(subscriptionManager)
         }
     }
     

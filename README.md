@@ -25,7 +25,7 @@ A comprehensive iOS app for tracking keto macros, logging food intake, and manag
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/KetoMacroTracker.git
+   git clone https://github.com/ozzzik/KetoMacroTracker.git
    cd KetoMacroTracker
    ```
 
@@ -34,11 +34,7 @@ A comprehensive iOS app for tracking keto macros, logging food intake, and manag
    open KetoMacroTracker.xcodeproj
    ```
 
-3. Configure API Keys:
-   - Copy `KetoMacroTracker/Services/APIKeys.plist.example` to `KetoMacroTracker/Services/APIKeys.plist`
-   - Add your USDA FoodData Central API key (see [README_API_KEYS.md](README_API_KEYS.md) for details)
-
-4. Build and run the project in Xcode
+3. Build and run the project in Xcode
 
 ## Project Structure
 
@@ -54,13 +50,15 @@ KetoMacroTracker/
 └── README.md
 ```
 
-## API Keys
+## Support
 
-This app uses the following APIs:
-- **USDA FoodData Central API**: For food nutrition data
-- **OpenFoodFacts API**: For barcode scanning and international products
+For support, feedback, or questions:
 
-See [README_API_KEYS.md](README_API_KEYS.md) for setup instructions.
+- **GitHub Issues:** [Submit an issue](https://github.com/ozzzik/KetoMacroTracker/issues)
+
+**Legal & policies:**
+- [Privacy Policy](https://ozzzik.github.io/KetoMacroTracker/privacy-policy.html)
+- [Terms of Use](https://ozzzik.github.io/KetoMacroTracker/terms-of-use.html)
 
 ## Contributing
 

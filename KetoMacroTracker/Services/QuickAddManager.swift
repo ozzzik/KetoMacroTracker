@@ -17,6 +17,10 @@ struct QuickAddItem: Identifiable, Codable, Equatable {
     var createdAt: Date
     var brandName: String? // Brand/vendor information
     
+    // Cholesterol and saturated fat (optional for backward compatibility; existing items will have nil → 0)
+    var cholesterol: Double? = nil
+    var saturatedFat: Double? = nil
+    
     // Original USDA food data for recalculation (optional for backward compatibility)
     var originalProtein: Double = 0.0
     var originalFat: Double = 0.0
@@ -27,6 +31,8 @@ struct QuickAddItem: Identifiable, Codable, Equatable {
     var originalCalories: Double = 0.0
     var originalServingSize: Double = 1.0
     var originalServingSizeUnit: String = "serving"
+    var originalCholesterol: Double? = nil
+    var originalSaturatedFat: Double? = nil
 }
 
 class QuickAddManager: ObservableObject {
@@ -89,12 +95,12 @@ class QuickAddManager: ObservableObject {
             }
             
             let sortedItems = migratedItems.sorted { item1, item2 in
-                if item1.useCount != item2.useCount {
-                    return item1.useCount > item2.useCount
-                }
+                // Most recently used first (LRU order: least recently used at bottom)
                 if let date1 = item1.lastUsed, let date2 = item2.lastUsed {
-                    return date1 > date2
-                }
+                    if date1 != date2 { return date1 > date2 }
+                } else if item1.lastUsed != nil { return true }
+                else if item2.lastUsed != nil { return false }
+                if item1.useCount != item2.useCount { return item1.useCount > item2.useCount }
                 return item1.createdAt > item2.createdAt
             }
             
@@ -144,10 +150,11 @@ class QuickAddManager: ObservableObject {
         }
     }
     
-    func addToQuickAdd(_ food: USDAFood, category: String = "General") {
+    func addToQuickAdd(_ food: USDAFood, category: String = "General", originalFood: USDAFood? = nil) {
         print("🔧 QuickAddManager.addToQuickAdd called:")
         print("  - Food: \(food.description)")
         print("  - Category: \(category)")
+        print("  - Original food provided: \(originalFood != nil)")
         print("  - Current item count: \(quickAddItems.count)")
         print("  - Manager instance: \(Unmanaged.passUnretained(self).toOpaque())")
         
@@ -174,6 +181,23 @@ class QuickAddManager: ObservableObject {
                 servingSizeText = "1 serving"
             }
             
+            // Use originalFood values if provided, otherwise use current food values
+            // This allows preserving the original values before conversion
+            let originalProtein = originalFood?.protein ?? food.protein
+            let originalFat = originalFood?.fat ?? food.fat
+            let originalTotalCarbs = originalFood?.totalCarbs ?? food.totalCarbs
+            let originalFiber = originalFood?.fiber ?? food.fiber
+            let originalSugarAlcohols = originalFood?.sugarAlcohols ?? food.sugarAlcohols
+            let originalNetCarbs = originalFood?.netCarbs ?? food.netCarbs
+            let originalCalories = originalFood?.calories ?? food.calories
+            let originalServingSize = originalFood?.servingSize ?? food.servingSize ?? 100.0
+            let originalServingSizeUnit = originalFood?.servingSizeUnit ?? food.servingSizeUnit ?? "g"
+            let originalCholesterolVal = originalFood?.cholesterol ?? food.cholesterol
+            let originalSaturatedFatVal = originalFood?.saturatedFat ?? food.saturatedFat
+            
+            print("🔄 Storing original values: servingSize=\(originalServingSize)\(originalServingSizeUnit), protein=\(originalProtein)g")
+            print("🔄 Storing current values: servingSize=\(food.servingSize ?? 0)\(food.servingSizeUnit ?? ""), protein=\(food.protein)g")
+            
             let newItem = QuickAddItem(
                 name: food.description,
                 protein: food.protein,
@@ -189,16 +213,20 @@ class QuickAddManager: ObservableObject {
                 lastUsed: Date(),
                 createdAt: Date(),
                 brandName: food.brandName, // Include brand information
-                // Store original USDA data
-                originalProtein: food.protein,
-                originalFat: food.fat,
-                originalTotalCarbs: food.totalCarbs,
-                originalFiber: food.fiber,
-                originalSugarAlcohols: food.sugarAlcohols,
-                originalNetCarbs: food.netCarbs,
-                originalCalories: food.calories,
-                originalServingSize: food.servingSize ?? 100.0,
-                originalServingSizeUnit: food.servingSizeUnit ?? "g"
+                cholesterol: food.cholesterol > 0 ? food.cholesterol : nil,
+                saturatedFat: food.saturatedFat > 0 ? food.saturatedFat : nil,
+                // Store original USDA data (before conversion)
+                originalProtein: originalProtein,
+                originalFat: originalFat,
+                originalTotalCarbs: originalTotalCarbs,
+                originalFiber: originalFiber,
+                originalSugarAlcohols: originalSugarAlcohols,
+                originalNetCarbs: originalNetCarbs,
+                originalCalories: originalCalories,
+                originalServingSize: originalServingSize,
+                originalServingSizeUnit: originalServingSizeUnit,
+                originalCholesterol: originalCholesterolVal > 0 ? originalCholesterolVal : nil,
+                originalSaturatedFat: originalSaturatedFatVal > 0 ? originalSaturatedFatVal : nil
             )
             quickAddItems.append(newItem)
         }
@@ -225,13 +253,13 @@ class QuickAddManager: ObservableObject {
         print("  - Servings: \(servings)")
         print("  - FoodLogManager: \(Unmanaged.passUnretained(foodLogManager).toOpaque())")
         
-        // Update use count and last used on main thread
+        // Update use count and last used on main thread, then re-sort by usage (most recent first)
         await MainActor.run {
             if let index = quickAddItems.firstIndex(where: { $0.id == quickAddItem.id }) {
                 quickAddItems[index].useCount += 1
                 quickAddItems[index].lastUsed = Date()
+                sortByUsage()
                 saveQuickAddItems()
-                // Don't reload - @Published will update UI automatically
             }
         }
         
@@ -301,6 +329,32 @@ class QuickAddManager: ObservableObject {
                 dataPoints: nil,
                 derivationCode: nil,
                 derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1253, // Cholesterol
+                nutrientName: "Cholesterol",
+                nutrientNumber: "601",
+                unitName: "MG",
+                value: quickAddItem.cholesterol ?? 0,
+                rank: 1500,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
+            ),
+            USDAFoodNutrient(
+                nutrientId: 1258, // Saturated Fat
+                nutrientName: "Fatty acids, total saturated",
+                nutrientNumber: "606",
+                unitName: "G",
+                value: quickAddItem.saturatedFat ?? 0,
+                rank: 970,
+                indentLevel: 1,
+                foodNutrientId: nil,
+                dataPoints: nil,
+                derivationCode: nil,
+                derivationDescription: nil
             )
         ]
         
@@ -341,6 +395,18 @@ class QuickAddManager: ObservableObject {
         // Don't reload - @Published will update UI automatically
     }
     
+    /// Sort quick add items by usage: most recently used first
+    private func sortByUsage() {
+        quickAddItems.sort { item1, item2 in
+            if let date1 = item1.lastUsed, let date2 = item2.lastUsed {
+                if date1 != date2 { return date1 > date2 }
+            } else if item1.lastUsed != nil { return true }
+            else if item2.lastUsed != nil { return false }
+            if item1.useCount != item2.useCount { return item1.useCount > item2.useCount }
+            return item1.createdAt > item2.createdAt
+        }
+    }
+
     func getQuickAddItemsByCategory(_ category: String) -> [QuickAddItem] {
         return quickAddItems.filter { $0.category == category }
     }
@@ -468,6 +534,8 @@ class QuickAddManager: ObservableObject {
                 useCount: 0,
                 lastUsed: nil,
                 createdAt: Date(),
+                cholesterol: nil,
+                saturatedFat: nil,
                 // For sample items, the current values are the original values
                 originalProtein: item.protein,
                 originalFat: item.fat,
@@ -477,7 +545,9 @@ class QuickAddManager: ObservableObject {
                 originalNetCarbs: item.carbs - item.fiber,
                 originalCalories: item.calories,
                 originalServingSize: 1.0, // Sample items are already in their "base" serving size
-                originalServingSizeUnit: "serving"
+                originalServingSizeUnit: "serving",
+                originalCholesterol: nil,
+                originalSaturatedFat: nil
             )
             quickAddItems.append(quickAddItem)
         }

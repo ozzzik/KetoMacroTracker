@@ -27,7 +27,6 @@ struct FoodSearchView: View {
     @State private var showKetoFriendlyOnly = false
     @State private var sortOption: SortOption = .relevance
     @State private var showingBarcodeHistory = false
-    @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var limitAlertMessage = ""
     
@@ -46,7 +45,8 @@ struct FoodSearchView: View {
     private let settingsManager = AppSettingsManager.shared
     
     // Premium limits
-    static let freeDailySearchLimit = 3 // 2-3 range, using 3
+    static let freeDailySearchLimit = 6 // Free: 6 searches per day (doubled)
+    static let freeDailyBarcodeScanLimit = 5 // Free: 5 barcode scans per day
     
     // Daily search tracking
     private var todaySearchCount: Int {
@@ -86,7 +86,25 @@ struct FoodSearchView: View {
         
         let currentCount = UserDefaults.standard.integer(forKey: "TodaySearchCount")
         UserDefaults.standard.set(currentCount + 1, forKey: "TodaySearchCount")
-        UserDefaults.standard.synchronize()
+    }
+    
+    // Daily barcode scan tracking (for free tier limit)
+    private var todayBarcodeScanCount: Int {
+        let todayKey = dateFormatter.string(from: Date())
+        let lastDate = UserDefaults.standard.string(forKey: "LastBarcodeScanDate") ?? ""
+        if lastDate != todayKey { return 0 }
+        return UserDefaults.standard.integer(forKey: "TodayBarcodeScanCount")
+    }
+    
+    private func incrementBarcodeScanCount() {
+        let todayKey = dateFormatter.string(from: Date())
+        let lastDate = UserDefaults.standard.string(forKey: "LastBarcodeScanDate") ?? ""
+        if lastDate != todayKey {
+            UserDefaults.standard.set(0, forKey: "TodayBarcodeScanCount")
+            UserDefaults.standard.set(todayKey, forKey: "LastBarcodeScanDate")
+        }
+        let current = UserDefaults.standard.integer(forKey: "TodayBarcodeScanCount")
+        UserDefaults.standard.set(current + 1, forKey: "TodayBarcodeScanCount")
     }
     
     // MARK: - Computed Properties
@@ -171,8 +189,12 @@ struct FoodSearchView: View {
             .buttonStyle(.bordered)
             
             Button("Scan Barcode") {
-                if !subscriptionManager.isPremiumActive {
-                    limitAlertMessage = "Barcode scanning is a Premium feature. Upgrade to unlock this feature!"
+                if subscriptionManager.isPremiumActive {
+                    showingBarcodeScanner = true
+                    return
+                }
+                if todayBarcodeScanCount >= Self.freeDailyBarcodeScanLimit {
+                    limitAlertMessage = "You've used your \(Self.freeDailyBarcodeScanLimit) free barcode scans today. Upgrade to Premium for unlimited scanning!"
                     showingLimitAlert = true
                     return
                 }
@@ -292,15 +314,8 @@ struct FoodSearchView: View {
             print("📱 showingManualEntry changed to: \(newValue)")
         }
         .adaptiveSheet(isPresented: $showingBarcodeScanner) {
-            Group {
-                if subscriptionManager.isPremiumActive {
-                    BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
-                        handleBarcodeScanned(barcode)
-                    }
-                } else {
-                    PaywallView()
-                        .environmentObject(subscriptionManager)
-                }
+            BarcodeScannerView(isPresented: $showingBarcodeScanner) { barcode in
+                handleBarcodeScanned(barcode)
             }
         }
         .adaptiveSheet(isPresented: $showingBarcodeHistory) {
@@ -357,9 +372,6 @@ struct FoodSearchView: View {
             }
         }
         .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
-            Button("Upgrade to Premium") {
-                showingPaywall = true
-            }
             Button("OK", role: .cancel) { }
         } message: {
             Text(limitAlertMessage)
@@ -372,10 +384,6 @@ struct FoodSearchView: View {
                 UserDefaults.standard.set(0, forKey: "TodaySearchCount")
                 UserDefaults.standard.set(todayKey, forKey: "LastSearchDate")
             }
-        }
-        .adaptiveSheet(isPresented: $showingPaywall) {
-            PaywallView()
-                .environmentObject(subscriptionManager)
         }
     }
     
@@ -427,7 +435,8 @@ struct FoodSearchView: View {
         
         // Increment search count
         incrementSearchCount()
-        
+        NotificationCenter.default.post(name: NSNotification.Name("SearchPerformed"), object: nil)
+
         // Refresh country settings in case they changed
         openFoodFactsAPI.refreshCountriesFromSettings()
         
@@ -679,6 +688,9 @@ struct FoodSearchView: View {
                         // Add to barcode history
                         barcodeHistoryManager.addBarcode(barcode, food: usdaFood)
                         
+                        // Count this scan toward free daily limit
+                        self.incrementBarcodeScanCount()
+                        
                         // Show success message
                         self.searchError = "✅ Found product: \(product.name) (\(product.brand))"
                     }
@@ -728,7 +740,6 @@ struct FoodSearchResultRow: View {
     
     @State private var servingSize = "1.0"
     @State private var showingAddConfirmation = false
-    @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var limitAlertMessage = ""
     
@@ -767,6 +778,27 @@ struct FoodSearchResultRow: View {
                 MacroInfo(title: "Carbs", value: "\(String(format: "%.1f", food.netCarbs))g", color: .orange)
                 MacroInfo(title: "Fat", value: "\(String(format: "%.1f", food.fat))g", color: .yellow)
                 MacroInfo(title: "Cal", value: "\(String(format: "%.0f", food.calories))", color: .purple)
+            }
+            
+            // Cholesterol & Saturated Fat (compact single line when available)
+            if food.cholesterol > 0 || food.saturatedFat > 0 {
+                HStack(spacing: 4) {
+                    if food.cholesterol > 0 {
+                        Text("Chol \(String(format: "%.0f", food.cholesterol))mg")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    if food.cholesterol > 0 && food.saturatedFat > 0 {
+                        Text("·")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    if food.saturatedFat > 0 {
+                        Text("Sat \(String(format: "%.1f", food.saturatedFat))g")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             
             HStack {
@@ -835,11 +867,11 @@ struct FoodSearchResultRow: View {
             
             Button("Add") {
                 if let servings = Double(servingSize), servings > 0 {
-                    // Directly add to food log with the serving size from text field
+                    // Input is multiples of 100g (label "× 100g"); nutrients are per 100g so pass as-is
                     Task { @MainActor in
                         do {
                             try foodLogManager.addFood(food, servings: servings, subscriptionManager: subscriptionManager)
-                            print("✅ Added \(servings) servings of \(food.description) to food log")
+                            print("✅ Added \(servings)×100g of \(food.description) to food log")
                         } catch FoodLogError.dailyLimitReached(let limit, _) {
                             limitAlertMessage = "You've reached your daily limit of \(limit) foods. Upgrade to Premium for unlimited logging!"
                             showingLimitAlert = true
@@ -855,7 +887,7 @@ struct FoodSearchResultRow: View {
             
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Add \(servingSize) servings of \(food.description) to your food log?")
+            Text("Add \(servingSize)×100g of \(food.description) to your food log?")
         }
     }
 }

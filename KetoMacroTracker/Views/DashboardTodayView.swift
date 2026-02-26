@@ -17,7 +17,6 @@ struct DashboardTodayView: View {
     @State private var showingFoodSearch = false
     @State private var showingQuickAdd = false
     @State private var showingFastingTimer = false
-    @State private var showingPaywall = false
     @StateObject private var dashboardTutorialManager = DashboardTutorialManager.shared
     @State private var selectedMacroType: MacroType = .protein
     @State private var selectedMacroTypeForSheet: MacroType? = nil
@@ -29,6 +28,8 @@ struct DashboardTodayView: View {
     private var carbs: Double { foodLogManager.netCarbs }
     private var fat: Double { foodLogManager.totalFat }
     private var calories: Double { foodLogManager.totalCalories }
+    private var cholesterol: Double { foodLogManager.totalCholesterol }
+    private var saturatedFat: Double { foodLogManager.totalSaturatedFat }
     
     // Macro balance warnings - time-aware and actionable
     private var macroBalanceWarnings: [MacroWarning] {
@@ -122,6 +123,15 @@ struct DashboardTodayView: View {
         return goals
     }
     
+    // Computed properties for cholesterol and saturated fat goals
+    private var cholesterolGoal: Double {
+        profileManager.profile.cholesterolGoal ?? 300.0
+    }
+    
+    private var saturatedFatGoal: Double {
+        profileManager.profile.saturatedFatGoal ?? 20.0
+    }
+    
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
@@ -176,10 +186,6 @@ struct DashboardTodayView: View {
                 color: macroColor(for: macroType)
             )
         }
-        .adaptiveSheet(isPresented: $showingPaywall) {
-            PaywallView()
-                .environmentObject(subscriptionManager)
-        }
         .adaptiveSheet(isPresented: $showingFastingTimer) {
             FastingTimerView()
         }
@@ -198,24 +204,10 @@ struct DashboardTodayView: View {
         .overlay(
             GuidedTourOverlay(tourManager: guidedTourManager)
         )
-        .onAppear {
-            // Show paywall on first launch if not subscribed
-            let hasSeenPaywall = UserDefaults.standard.bool(forKey: "hasSeenPaywall")
-            let hasLoggedFood = !foodLogManager.todaysFoods.isEmpty
-            
-            if !hasSeenPaywall && !hasLoggedFood && !subscriptionManager.isPremiumActive {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showingPaywall = true
-                    UserDefaults.standard.set(true, forKey: "hasSeenPaywall")
-                }
-            }
-        }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-            // Dismiss sheets when app goes to background to prevent trait collection crashes
             if newPhase == .background || newPhase == .inactive {
                 showingFoodSearch = false
                 showingQuickAdd = false
-                showingPaywall = false
                 selectedMacroTypeForSheet = nil
             }
         }
@@ -500,74 +492,109 @@ struct DashboardTodayView: View {
     // MARK: - Progress Rings Section
     private var progressRingsSection: some View {
         AppCard {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 Text("Progress Rings")
                     .font(AppTypography.title3)
                     .foregroundColor(AppColors.text)
                 
-                HStack(spacing: 20) {
-                    Button(action: {
-                        selectedMacroType = .protein
-                        selectedMacroTypeForSheet = .protein
-                    }) {
-                        progressRing(
-                            value: safeDivision(protein, macroGoals.protein),
-                            title: "P",
-                            percentage: safePercentage(protein, macroGoals.protein),
-                            color: AppColors.protein
-                        )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 24) {
+                        Button(action: {
+                            selectedMacroType = .protein
+                            selectedMacroTypeForSheet = .protein
+                        }) {
+                            progressRing(
+                                value: safeDivision(protein, macroGoals.protein),
+                                title: "P",
+                                percentage: safePercentage(protein, macroGoals.protein),
+                                color: AppColors.protein
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Protein breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your protein intake")
+                        
+                        Button(action: {
+                            selectedMacroType = .carbs
+                            selectedMacroTypeForSheet = .carbs
+                        }) {
+                            progressRing(
+                                value: safeDivision(carbs, macroGoals.carbs),
+                                title: "C",
+                                percentage: safePercentage(carbs, macroGoals.carbs),
+                                color: AppColors.carbs
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Carbs breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your carb intake")
+                        
+                        Button(action: {
+                            selectedMacroType = .fat
+                            selectedMacroTypeForSheet = .fat
+                        }) {
+                            progressRing(
+                                value: safeDivision(fat, macroGoals.fat),
+                                title: "F",
+                                percentage: safePercentage(fat, macroGoals.fat),
+                                color: AppColors.fat
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Fat breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your fat intake")
+                        
+                        Button(action: {
+                            selectedMacroType = .calories
+                            selectedMacroTypeForSheet = .calories
+                        }) {
+                            progressRing(
+                                value: safeDivision(calories, macroGoals.calories),
+                                title: "Cal",
+                                percentage: safePercentage(calories, macroGoals.calories),
+                                color: AppColors.calories
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Calories breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your calorie intake")
+                        
+                        Button(action: {
+                            selectedMacroType = .cholesterol
+                            selectedMacroTypeForSheet = .cholesterol
+                        }) {
+                            progressRing(
+                                value: safeDivision(cholesterol, cholesterolGoal),
+                                title: "Chol",
+                                percentage: safePercentage(cholesterol, cholesterolGoal),
+                                color: AppColors.cholesterol
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Cholesterol breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your cholesterol intake")
+                        
+                        Button(action: {
+                            selectedMacroType = .saturatedFat
+                            selectedMacroTypeForSheet = .saturatedFat
+                        }) {
+                            progressRing(
+                                value: safeDivision(saturatedFat, saturatedFatGoal),
+                                title: "Sat",
+                                percentage: safePercentage(saturatedFat, saturatedFatGoal),
+                                color: AppColors.saturatedFat
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Saturated fat breakdown")
+                        .accessibilityHint("Tap to see which foods contribute most to your saturated fat intake")
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Protein breakdown")
-                    .accessibilityHint("Tap to see which foods contribute most to your protein intake")
-                    
-                    Button(action: {
-                        selectedMacroType = .carbs
-                        selectedMacroTypeForSheet = .carbs
-                    }) {
-                        progressRing(
-                            value: safeDivision(carbs, macroGoals.carbs),
-                            title: "C",
-                            percentage: safePercentage(carbs, macroGoals.carbs),
-                            color: AppColors.carbs
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Carbs breakdown")
-                    .accessibilityHint("Tap to see which foods contribute most to your carb intake")
-                    
-                    Button(action: {
-                        selectedMacroType = .fat
-                        selectedMacroTypeForSheet = .fat
-                    }) {
-                        progressRing(
-                            value: safeDivision(fat, macroGoals.fat),
-                            title: "F",
-                            percentage: safePercentage(fat, macroGoals.fat),
-                            color: AppColors.fat
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Fat breakdown")
-                    .accessibilityHint("Tap to see which foods contribute most to your fat intake")
-                    
-                    Button(action: {
-                        selectedMacroType = .calories
-                        selectedMacroTypeForSheet = .calories
-                    }) {
-                        progressRing(
-                            value: safeDivision(calories, macroGoals.calories),
-                            title: "Cal",
-                            percentage: safePercentage(calories, macroGoals.calories),
-                            color: AppColors.calories
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Calories breakdown")
-                    .accessibilityHint("Tap to see which foods contribute most to your calorie intake")
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 12)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(minHeight: 100)
             }
+            .padding(.vertical, 4)
         }
     }
     
@@ -665,16 +692,18 @@ struct DashboardTodayView: View {
     }
     
     private func progressRing(value: Double, title: String, percentage: Int, color: Color) -> some View {
-        VStack(spacing: 8) {
+        let ringSize: CGFloat = 72
+        let lineWidth: CGFloat = 7
+        return VStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .stroke(color.opacity(0.2), lineWidth: 6)
-                    .frame(width: 60, height: 60)
+                    .stroke(color.opacity(0.2), lineWidth: lineWidth)
+                    .frame(width: ringSize, height: ringSize)
                 
                 Circle()
                     .trim(from: 0, to: min(max(value.isFinite ? value : 0.0, 0.0), 1.0))
-                    .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                    .frame(width: 60, height: 60)
+                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .frame(width: ringSize, height: ringSize)
                     .rotationEffect(.degrees(-90))
                 
                 Text("\(percentage)%")
@@ -688,6 +717,7 @@ struct DashboardTodayView: View {
                 .foregroundColor(AppColors.text)
                 .fontWeight(.medium)
         }
+        .frame(minWidth: 80)
     }
     
     private func foodLogItem(icon: String, name: String, serving: String, protein: Int, carbs: Int, fat: Int, calories: Int) -> some View {
@@ -742,6 +772,8 @@ struct DashboardTodayView: View {
         case .carbs: return carbs
         case .fat: return fat
         case .calories: return calories
+        case .cholesterol: return cholesterol
+        case .saturatedFat: return saturatedFat
         }
     }
     
@@ -751,6 +783,8 @@ struct DashboardTodayView: View {
         case .carbs: return macroGoals.carbs
         case .fat: return macroGoals.fat
         case .calories: return macroGoals.calories
+        case .cholesterol: return cholesterolGoal
+        case .saturatedFat: return saturatedFatGoal
         }
     }
     
@@ -760,6 +794,8 @@ struct DashboardTodayView: View {
         case .carbs: return AppColors.carbs
         case .fat: return AppColors.fat
         case .calories: return AppColors.calories
+        case .cholesterol: return AppColors.cholesterol
+        case .saturatedFat: return AppColors.saturatedFat
         }
     }
 }

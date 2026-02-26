@@ -16,6 +16,8 @@ struct UserProfile: Codable, Equatable {
     var gender: String // "Male" or "Female"
     var activityLevel: String
     var goal: String
+    var cholesterolGoal: Double? // in mg, optional for backward compatibility
+    var saturatedFatGoal: Double? // in g, optional for backward compatibility
     
     // Default values for new users
     static let defaultProfile = UserProfile(
@@ -24,7 +26,9 @@ struct UserProfile: Codable, Equatable {
         age: 30,
         gender: "Male",
         activityLevel: "Moderately Active",
-        goal: "Lose Fat"
+        goal: "Lose Fat",
+        cholesterolGoal: 300.0, // Default: 300mg/day (recommended limit)
+        saturatedFatGoal: 20.0 // Default: 20g/day (recommended limit)
     )
 }
 
@@ -40,8 +44,20 @@ class ProfileManager: ObservableObject {
         // Load profile from UserDefaults or use default
         if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
            let savedProfile = try? JSONDecoder().decode(UserProfile.self, from: data) {
-            self.profile = savedProfile
-            print("📱 Loaded saved profile: \(savedProfile)")
+            var profile = savedProfile
+            // Set default goals if not present (backward compatibility)
+            if profile.cholesterolGoal == nil {
+                profile.cholesterolGoal = 300.0 // Default: 300mg/day
+            }
+            if profile.saturatedFatGoal == nil {
+                profile.saturatedFatGoal = 20.0 // Default: 20g/day
+            }
+            self.profile = profile
+            print("📱 Loaded saved profile: \(profile)")
+            // Save updated profile with defaults if needed
+            if savedProfile.cholesterolGoal == nil || savedProfile.saturatedFatGoal == nil {
+                saveProfile()
+            }
         } else {
             self.profile = UserProfile.defaultProfile
             print("📱 Using default profile: \(profile)")
@@ -64,6 +80,18 @@ class ProfileManager: ObservableObject {
         print("🔄 New profile: \(profile)")
         saveProfile()
         print("📱 Profile updated and saved successfully")
+    }
+    
+    func updateCholesterolGoal(_ goal: Double) {
+        profile.cholesterolGoal = goal
+        saveProfile()
+        print("📱 Cholesterol goal updated to \(goal)mg")
+    }
+    
+    func updateSaturatedFatGoal(_ goal: Double) {
+        profile.saturatedFatGoal = goal
+        saveProfile()
+        print("📱 Saturated fat goal updated to \(goal)g")
     }
     
     func resetToDefaults() {

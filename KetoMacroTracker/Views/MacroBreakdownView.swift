@@ -37,6 +37,10 @@ struct MacroBreakdownView: View {
             return food.totalFat
         case .calories:
             return food.totalCalories
+        case .cholesterol:
+            return food.totalCholesterol
+        case .saturatedFat:
+            return food.totalSaturatedFat
         }
     }
     
@@ -47,14 +51,25 @@ struct MacroBreakdownView: View {
         case .carbs: return "Net Carbs"
         case .fat: return "Fat"
         case .calories: return "Calories"
+        case .cholesterol: return "Cholesterol"
+        case .saturatedFat: return "Saturated Fat"
         }
     }
     
     // Helper function to get macro unit
     private var macroUnit: String {
         switch macroType {
-        case .protein, .carbs, .fat: return "g"
+        case .protein, .carbs, .fat, .saturatedFat: return "g"
         case .calories: return "cal"
+        case .cholesterol: return "mg"
+        }
+    }
+    
+    // Show one decimal for saturated fat, integers for others
+    private func amountDisplayString(_ value: Double) -> String {
+        switch macroType {
+        case .saturatedFat: return String(format: "%.1f", value)
+        default: return "\(Int(value))"
         }
     }
     
@@ -95,7 +110,7 @@ struct MacroBreakdownView: View {
                     .rotationEffect(.degrees(-90))
                 
                 VStack {
-                    Text("\(Int(totalAmount))")
+                    Text(amountDisplayString(totalAmount))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundColor(color)
                     
@@ -107,7 +122,7 @@ struct MacroBreakdownView: View {
             
             // Progress info
             VStack(spacing: 8) {
-                Text("\(Int(totalAmount))\(macroUnit) / \(Int(goalAmount))\(macroUnit)")
+                Text("\(amountDisplayString(totalAmount))\(macroUnit) / \(amountDisplayString(goalAmount))\(macroUnit)")
                     .font(AppTypography.headline)
                     .foregroundColor(AppColors.text)
                 
@@ -116,7 +131,7 @@ struct MacroBreakdownView: View {
                     .foregroundColor(AppColors.secondaryText)
                 
                 if totalAmount > goalAmount {
-                    Text("Over goal by \(Int(totalAmount - goalAmount))\(macroUnit)")
+                    Text("Over goal by \(amountDisplayString(totalAmount - goalAmount))\(macroUnit)")
                         .font(AppTypography.caption)
                         .foregroundColor(.orange)
                         .fontWeight(.medium)
@@ -178,6 +193,8 @@ struct MacroBreakdownView: View {
         case .carbs: return "leaf.fill"
         case .fat: return "drop.fill"
         case .calories: return "flame.fill"
+        case .cholesterol: return "heart.fill"
+        case .saturatedFat: return "square.stack.3d.down.right.fill"
         }
     }
 }
@@ -262,6 +279,8 @@ enum MacroType: Identifiable {
     case carbs
     case fat
     case calories
+    case cholesterol
+    case saturatedFat
     
     var id: String {
         switch self {
@@ -269,6 +288,8 @@ enum MacroType: Identifiable {
         case .carbs: return "carbs"
         case .fat: return "fat"
         case .calories: return "calories"
+        case .cholesterol: return "cholesterol"
+        case .saturatedFat: return "saturatedFat"
         }
     }
 }
